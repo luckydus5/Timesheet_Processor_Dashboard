@@ -171,144 +171,300 @@ class TimesheetProcessor:
         
         return f"{whole_hours}:{whole_minutes:02d}"
 
-    def detect_cross_midnight_shifts(self, df):
-        """Enhanced cross-midnight shift detection - handles all patterns including orphaned entries"""
+    def detect_and_clean_multiple_entries(self, df):
+        """
+        🧹 SMART DATA CLEANING: Handle multiple check-ins/check-outs per day
+        
+        Rules:
+        1. Take EARLIEST check-in (OverTime In, C/In, CheckIn, etc.) 
+        2. Take LATEST check-out (OverTime Out, C/Out, CheckOut, etc.)
+        3. Remove intermediate entries
+        4. Preserve original data with detailed logging
+        """
         df_work = df.copy()
-        df_work['Shift_Group'] = df_work['Date_parsed']  # Default: group by original date
-        df_work['Processed'] = False  # Track which entries we've processed
+        df_work['Original_Index'] = df_work.index
+        df_work['Action_Taken'] = 'KEPT'
+        
+        cleaning_stats = {
+            'employees_processed': 0,
+            'entries_removed': 0,
+            'days_cleaned': 0,
+            'multiple_entries_found': []
+        }
+        
+        st.info("🧹 Starting Smart Data Cleaning for Multiple Entries...")
+        
+        # Group by employee and date
+        for (employee, date), group in df_work.groupby(['Name', 'Date_parsed']):
+            if len(group) <= 2:  # Skip if only 1-2 entries (normal case)
+                continue
+                
+            cleaning_stats['employees_processed'] += 1
+            cleaning_stats['days_cleaned'] += 1
+            
+            # Separate check-ins and check-outs
+            checkins = group[group['Status'].str.contains('In|C/In', case=False, na=False)]
+            checkouts = group[group['Status'].str.contains('Out|C/Out', case=False, na=False)]
+            
+            entries_to_remove = []
+            
+            # Handle multiple check-ins
+            if len(checkins) > 1:
+                earliest_checkin = checkins.loc[checkins['Time_parsed'].idxmin()]
+                other_checkins = checkins[checkins.index != earliest_checkin.name]
+                
+                cleaning_stats['multiple_entries_found'].append({
+                    'employee': employee,
+                    'date': date,
+                    'type': 'Multiple Check-ins',
+                    'kept': f"{earliest_checkin['Time']} ({earliest_checkin['Status']})",
+                    'removed': [f"{row['Time']} ({row['Status']})" for _, row in other_checkins.iterrows()],
+                    'count_removed': len(other_checkins)
+                })
+                
+                # Mark others for removal
+                for idx in other_checkins.index:
+                    entries_to_remove.append(idx)
+                    df_work.loc[idx, 'Action_Taken'] = 'REMOVED_DUPLICATE_CHECKIN'
+            
+            # Handle multiple check-outs  
+            if len(checkouts) > 1:
+                latest_checkout = checkouts.loc[checkouts['Time_parsed'].idxmax()]
+                other_checkouts = checkouts[checkouts.index != latest_checkout.name]
+                
+                cleaning_stats['multiple_entries_found'].append({
+                    'employee': employee,
+                    'date': date,
+                    'type': 'Multiple Check-outs',
+                    'kept': f"{latest_checkout['Time']} ({latest_checkout['Status']})",
+                    'removed': [f"{row['Time']} ({row['Status']})" for _, row in other_checkouts.iterrows()],
+                    'count_removed': len(other_checkouts)
+                })
+                
+                # Mark others for removal
+                for idx in other_checkouts.index:
+                    entries_to_remove.append(idx)
+                    df_work.loc[idx, 'Action_Taken'] = 'REMOVED_DUPLICATE_CHECKOUT'
+            
+            cleaning_stats['entries_removed'] += len(entries_to_remove)
+        
+        # Show cleaning summary
+        self._display_cleaning_summary(cleaning_stats)
+        
+        # Return cleaned data (remove marked entries)
+        cleaned_df = df_work[df_work['Action_Taken'] == 'KEPT'].copy()
+        
+        # Store cleaning log for user review
+        self.cleaning_log = df_work[df_work['Action_Taken'] != 'KEPT'].copy()
+        
+        return cleaned_df
+    
+    def _display_cleaning_summary(self, stats):
+        """Display comprehensive cleaning summary"""
+        if stats['entries_removed'] > 0:
+            st.warning(f"🧹 **DATA CLEANING PERFORMED**")
+            
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("Employees Processed", stats['employees_processed'])
+            with col2:
+                st.metric("Days Cleaned", stats['days_cleaned']) 
+            with col3:
+                st.metric("Entries Removed", stats['entries_removed'])
+            
+            # Show detailed cleaning actions
+            with st.expander("📋 View Detailed Cleaning Actions", expanded=False):
+                for action in stats['multiple_entries_found']:
+                    st.write(f"**{action['employee']}** - {action['date']}")
+                    st.write(f"• {action['type']}")
+                    st.write(f"• ✅ **Kept**: {action['kept']}")
+                    st.write(f"• ❌ **Removed**: {', '.join(action['removed'])}")
+                    st.write("---")
+            
+            # Option to download cleaning log
+            if hasattr(self, 'cleaning_log') and not self.cleaning_log.empty:
+                st.download_button(
+                    label="📥 Download Cleaning Log",
+                    data=self.cleaning_log.to_csv(index=False),
+                    file_name=f"cleaning_log_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+                    mime="text/csv"
+                )
+        else:
+            st.success("✅ No duplicate entries found - data is clean!")
+
+    def detect_cross_midnight_shifts(self, df):
+        """
+        ENHANCED cross-midnight shift detection with smart data cleaning
+        """
+        # Step 1: Clean multiple entries first
+        df_cleaned = self.detect_and_clean_multiple_entries(df)
+        
+        # Step 2: Apply enhanced shift detection
+        df_work = df_cleaned.copy()
+        df_work['Shift_Group'] = df_work['Date_parsed']  # Default grouping
+        df_work['Processed'] = False
+        df_work['Shift_Type_Detected'] = 'Unknown'
         
         # Sort by employee, date, and time
         df_work = df_work.sort_values(['Name', 'Date_parsed', 'Time_parsed'])
         
         employees = df_work['Name'].unique()
-        cross_midnight_count = 0
+        processed_pairs = 0
+        cross_midnight_shifts = 0
+        unmatched_entries = []
+        
+        st.info("🔍 Starting Enhanced Shift Detection...")
         
         for employee in employees:
             emp_data = df_work[df_work['Name'] == employee].copy()
             emp_indices = df_work[df_work['Name'] == employee].index.tolist()
             
-            # STEP 1: Find direct cross-midnight patterns (In → Out next day)
-            for i in range(len(emp_data) - 1):
-                current_idx = emp_indices[i]
-                next_idx = emp_indices[i + 1]
-                
-                current_row = emp_data.iloc[i]
-                next_row = emp_data.iloc[i + 1]
-                
-                # Skip if already processed
-                if df_work.loc[current_idx, 'Processed'] or df_work.loc[next_idx, 'Processed']:
-                    continue
-                
-                # Check for cross-midnight pattern
-                if (current_row['Status'] in ['OverTime In'] and 
-                    next_row['Status'] in ['OverTime Out'] and
-                    current_row['Date_parsed'] != next_row['Date_parsed']):
-                    
-                    days_diff = (next_row['Date_parsed'] - current_row['Date_parsed']).days
-                    
-                    if days_diff == 1:
-                        current_time_decimal = current_row['Time_parsed'].hour + current_row['Time_parsed'].minute/60
-                        next_time_decimal = next_row['Time_parsed'].hour + next_row['Time_parsed'].minute/60
-                        
-                        # Night shift pattern: start in evening (16:00+), end in morning (before 12:00)
-                        if current_time_decimal >= 16.0 and next_time_decimal <= 12.0:
-                            # Group both entries under the START date
-                            df_work.loc[next_idx, 'Shift_Group'] = current_row['Date_parsed']
-                            df_work.loc[current_idx, 'Processed'] = True
-                            df_work.loc[next_idx, 'Processed'] = True
-                            cross_midnight_count += 2
+            # Convert to list for easier processing
+            entries = []
+            for i, (idx, row) in enumerate(zip(emp_indices, emp_data.itertuples())):
+                entries.append({
+                    'index': idx,
+                    'date': row.Date_parsed,
+                    'time': row.Time_parsed,
+                    'status': row.Status,
+                    'datetime': datetime.combine(row.Date_parsed, row.Time_parsed),
+                    'processed': False
+                })
             
-            # STEP 2: Find orphaned evening check-ins (night shift starts)
-            for i in range(len(emp_data)):
-                current_idx = emp_indices[i]
-                current_row = emp_data.iloc[i]
-                
-                # Skip if already processed
-                if df_work.loc[current_idx, 'Processed']:
+            # Process entries to find In/Out pairs
+            for i in range(len(entries)):
+                if entries[i]['processed']:
                     continue
-                
-                # Look for evening OverTime In that might be start of night shift
-                if current_row['Status'] == 'OverTime In':
-                    current_time_decimal = current_row['Time_parsed'].hour + current_row['Time_parsed'].minute/60
                     
-                    # Evening check-in (16:00 or later)
-                    if current_time_decimal >= 16.0:
-                        # Look for matching Out on next day(s)
-                        current_date = current_row['Date_parsed']
+                current = entries[i]
+                
+                # Look for check-in statuses
+                if any(status in current['status'] for status in ['In', 'C/In']):
+                    
+                    # Find the next checkout for this employee
+                    checkout_found = False
+                    for j in range(i + 1, len(entries)):
+                        if entries[j]['processed']:
+                            continue
+                            
+                        candidate = entries[j]
                         
-                        # Search next few days for matching checkout
-                        for j in range(i + 1, min(i + 4, len(emp_data))):  # Look up to 3 days ahead
-                            next_idx = emp_indices[j]
-                            next_row = emp_data.iloc[j]
+                        # Look for checkout statuses
+                        if any(status in candidate['status'] for status in ['Out', 'C/Out']):
                             
-                            # Skip if already processed
-                            if df_work.loc[next_idx, 'Processed']:
-                                continue
+                            # Calculate time difference
+                            time_diff = candidate['datetime'] - current['datetime']
+                            hours_diff = time_diff.total_seconds() / 3600
                             
-                            # Look for morning checkout
-                            if (next_row['Status'] in ['OverTime Out'] and 
-                                next_row['Date_parsed'] > current_date):
+                            # Valid shift if between 1-24 hours (more flexible)
+                            if 1 <= hours_diff <= 24:
                                 
-                                next_time_decimal = next_row['Time_parsed'].hour + next_row['Time_parsed'].minute/60
-                                days_diff = (next_row['Date_parsed'] - current_date).days
+                                # Determine if cross-midnight
+                                cross_midnight = current['date'] != candidate['date']
+                                checkin_hour = current['time'].hour + current['time'].minute/60
+                                checkout_hour = candidate['time'].hour + candidate['time'].minute/60
                                 
-                                # Morning checkout (before 12:00) within reasonable time
-                                if next_time_decimal <= 12.0 and days_diff <= 2:
-                                    # Group checkout under the check-in date
-                                    df_work.loc[next_idx, 'Shift_Group'] = current_date
-                                    df_work.loc[current_idx, 'Processed'] = True
-                                    df_work.loc[next_idx, 'Processed'] = True
-                                    cross_midnight_count += 2
-                                    break
+                                # Determine shift type
+                                if cross_midnight:
+                                    if checkin_hour >= 16 and checkout_hour <= 10:
+                                        shift_type = "Night Shift"
+                                        # Group under check-in date for night shifts
+                                        df_work.loc[candidate['index'], 'Shift_Group'] = current['date']
+                                        cross_midnight_shifts += 1
+                                        
+                                        st.success(f"🌙 Cross-midnight shift: {employee} "
+                                                 f"In: {current['date']} {current['time']} → "
+                                                 f"Out: {candidate['date']} {candidate['time']}")
+                                    else:
+                                        shift_type = "Extended Shift"
+                                        df_work.loc[candidate['index'], 'Shift_Group'] = current['date']
+                                else:
+                                    if checkin_hour >= 6 and checkout_hour <= 18:
+                                        shift_type = "Day Shift"
+                                    else:
+                                        shift_type = "Evening/Night Shift"
+                                
+                                # Mark both entries as processed
+                                df_work.loc[current['index'], 'Processed'] = True
+                                df_work.loc[candidate['index'], 'Processed'] = True
+                                df_work.loc[current['index'], 'Shift_Type_Detected'] = shift_type
+                                df_work.loc[candidate['index'], 'Shift_Type_Detected'] = shift_type
+                                
+                                entries[i]['processed'] = True
+                                entries[j]['processed'] = True
+                                processed_pairs += 1
+                                checkout_found = True
+                                break
+                    
+                    if not checkout_found:
+                        unmatched_entries.append({
+                            'employee': employee,
+                            'date': current['date'], 
+                            'time': current['time'],
+                            'status': current['status']
+                        })
+        
+        # Handle unmatched entries with user options
+        if unmatched_entries:
+            self._handle_unmatched_entries(unmatched_entries)
+        
+        # Clean up temporary columns
+        df_work = df_work.drop(['Processed'], axis=1)
+        
+        # Report results
+        if processed_pairs > 0:
+            st.success(f"✅ Processed {processed_pairs} shift pairs successfully")
+        if cross_midnight_shifts > 0:
+            st.info(f"🌙 Found and handled {cross_midnight_shifts} cross-midnight shifts")
+        
+        return df_work
+    
+    def _handle_unmatched_entries(self, unmatched_entries):
+        """Handle unmatched entries with user control"""
+        st.warning(f"⚠️ Found {len(unmatched_entries)} unmatched entries")
+        
+        with st.expander("🔍 View Unmatched Entries", expanded=True):
+            unmatched_df = pd.DataFrame(unmatched_entries)
+            st.dataframe(unmatched_df, use_container_width=True)
             
-            # STEP 3: Handle remaining orphaned morning checkouts
-            for i in range(len(emp_data)):
-                current_idx = emp_indices[i]
-                current_row = emp_data.iloc[i]
+            st.info("""
+            **Possible reasons for unmatched entries:**
+            - Missing check-out for the day
+            - Check-out recorded on a different date
+            - Data entry errors
+            - Employee worked but didn't check out properly
+            
+            **Recommendation:** Review these entries manually or contact HR for clarification.
+            """)
+            
+            # Option to download unmatched entries
+            st.download_button(
+                label="📥 Download Unmatched Entries for Review",
+                data=unmatched_df.to_csv(index=False),
+                file_name=f"unmatched_entries_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+                mime="text/csv"
+            )
+    
+    def _handle_duplicate_entries(self, df_work):
+        """Handle duplicate entries like multiple checkouts at almost same time"""
+        # Group by employee, shift group, and status
+        duplicates_removed = 0
+        
+        for (employee, shift_group, status), group in df_work.groupby(['Name', 'Shift_Group', 'Status']):
+            if len(group) > 1:
+                # Keep the first entry, mark others as processed (to be ignored)
+                sorted_group = group.sort_values('Time_parsed')
+                indices_to_remove = sorted_group.index[1:]  # Remove all but first
                 
-                # Skip if already processed
-                if df_work.loc[current_idx, 'Processed']:
-                    continue
-                
-                # Look for morning OverTime Out that might be end of night shift
-                if current_row['Status'] == 'OverTime Out':
-                    current_time_decimal = current_row['Time_parsed'].hour + current_row['Time_parsed'].minute/60
-                    
-                    # Morning checkout (before 12:00)
-                    if current_time_decimal <= 12.0:
-                        current_date = current_row['Date_parsed']
-                        
-                        # Look for matching In on previous day(s)
-                        for j in range(i - 1, max(i - 4, -1), -1):  # Look up to 3 days back
-                            prev_idx = emp_indices[j]
-                            prev_row = emp_data.iloc[j]
-                            
-                            # Skip if already processed
-                            if df_work.loc[prev_idx, 'Processed']:
-                                continue
-                            
-                            # Look for evening check-in
-                            if (prev_row['Status'] in ['OverTime In'] and 
-                                prev_row['Date_parsed'] < current_date):
-                                
-                                prev_time_decimal = prev_row['Time_parsed'].hour + prev_row['Time_parsed'].minute/60
-                                days_diff = (current_date - prev_row['Date_parsed']).days
-                                
-                                # Evening check-in (16:00+) within reasonable time
-                                if prev_time_decimal >= 16.0 and days_diff <= 2:
-                                    # Group checkout under the check-in date
-                                    df_work.loc[current_idx, 'Shift_Group'] = prev_row['Date_parsed']
-                                    df_work.loc[prev_idx, 'Processed'] = True
-                                    df_work.loc[current_idx, 'Processed'] = True
-                                    cross_midnight_count += 2
-                                    break
+                for idx in indices_to_remove:
+                    df_work.loc[idx, 'Status'] = 'DUPLICATE_REMOVED'
+                    duplicates_removed += 1
         
-        # Clean up the temporary column
-        df_work = df_work.drop('Processed', axis=1)
+        if duplicates_removed > 0:
+            st.info(f"🧹 Removed {duplicates_removed} duplicate entries")
         
-        if cross_midnight_count > 0:
-            st.info(f"🌙 Enhanced detection: {cross_midnight_count} cross-midnight entries processed")
-        
+        # Filter out duplicates
+        df_work = df_work[df_work['Status'] != 'DUPLICATE_REMOVED']
         return df_work
 
     def find_first_checkin_last_checkout(self, employee_day_records):
