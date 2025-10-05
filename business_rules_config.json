@@ -1,0 +1,43 @@
+{
+  "shift_definitions": {
+    "day_shift": {
+      "start_time": "08:00:00",
+      "end_time": "17:00:00",
+      "name": "Day Shift",
+      "description": "Standard daytime working hours"
+    },
+    "night_shift": {
+      "start_time": "18:00:00",
+      "end_time": "03:00:00",
+      "name": "Night Shift",
+      "description": "Evening to early morning hours"
+    }
+  },
+  "overtime_rules": {
+    "minimum_overtime_minutes": 30,
+    "day_shift_max_overtime_hours": 1.5,
+    "night_shift_max_overtime_hours": 3.0,
+    "overtime_calculation_method": "after_shift_end"
+  },
+  "calculation_settings": {
+    "round_to_nearest_minutes": 15,
+    "allow_early_checkin_overtime": false,
+    "cross_midnight_handling": true,
+    "weekend_rules_apply": true
+  },
+  "validation_rules": {
+    "max_daily_hours": 16,
+    "min_break_between_shifts": 8,
+    "require_both_checkin_checkout": true
+  },
+  "display_settings": {
+    "time_format": "HH:MM:SS",
+    "decimal_places": 2,
+    "show_warnings": true
+  },
+  "advanced_rules": {
+    "holiday_overtime_multiplier": 1.5,
+    "weekend_overtime_multiplier": 1.2,
+    "consecutive_overtime_limit": 5
+  }
+}
