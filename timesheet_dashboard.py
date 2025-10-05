@@ -44,6 +44,44 @@ st.markdown("""
         text-align: center;
         margin-bottom: 2rem;
     }
+    .header-container {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 2rem;
+    }
+    .author-header {
+        position: absolute;
+        right: 20px;
+        top: 20px;
+        font-size: 1.1rem;
+        color: #1f77b4;
+        font-weight: bold;
+        text-align: right;
+        background-color: rgba(255, 255, 255, 0.9);
+        padding: 8px 12px;
+        border-radius: 8px;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+        z-index: 1000;
+    }
+    .title-section {
+        flex: 1;
+        text-align: center;
+    }
+    .author-section {
+        position: absolute;
+        right: 20px;
+        top: 80px;
+        font-size: 0.9rem;
+        color: #666;
+        font-style: italic;
+        text-align: right;
+    }
+    .author-name {
+        color: #1f77b4;
+        font-weight: bold;
+        font-style: normal;
+    }
     .metric-card {
         background-color: #f0f2f6;
         padding: 1rem;
@@ -80,6 +118,26 @@ class TimesheetProcessor:
     def __init__(self):
         self.BASE_FOLDER = "/home/luckdus/Desktop/Data Cleaner"
     
+    def format_hours_to_time(self, decimal_hours):
+        """Convert decimal hours to HH:MM:SS format
+        
+        Args:
+            decimal_hours: Float representing hours (e.g., 6.73)
+            
+        Returns:
+            String in HH:MM:SS format (e.g., "06:43:48")
+        """
+        if decimal_hours == 0 or pd.isna(decimal_hours):
+            return "00:00:00"
+        
+        # Extract hours, minutes, and seconds
+        hours = int(decimal_hours)
+        remaining_decimal = decimal_hours - hours
+        minutes = int(remaining_decimal * 60)
+        seconds = int((remaining_decimal * 60 - minutes) * 60)
+        
+        return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+    
     def parse_date_time(self, date_str, time_str):
         """Parse separate date and time strings"""
         if pd.isna(date_str) or pd.isna(time_str) or date_str == '' or time_str == '':
@@ -105,19 +163,29 @@ class TimesheetProcessor:
             return None, None
 
     def find_first_checkin_last_checkout(self, employee_day_records):
-        """Find FIRST check-in and LAST check-out for an employee on a specific date"""
+        """Find FIRST check-in and LAST check-out for an employee on a specific date
+        
+        This function properly handles:
+        - Multiple check-ins per day: Takes the EARLIEST time
+        - Multiple check-outs per day: Takes the LATEST time  
+        - Mixed status types: Treats 'C/In' and 'OverTime In' both as check-ins
+        - Mixed status types: Treats 'C/Out' and 'OverTime Out' both as check-outs
+        - Hides duplicate entries while preserving the full work period
+        - Ensures no data is lost by capturing complete work span
+        """
         if employee_day_records.empty:
             return None, None
         
         # Sort by time first
         sorted_records = employee_day_records.sort_values('Time_parsed')
         
-        # Find all check-ins (any status containing 'In')
+        # Find all check-ins: 'C/In', 'OverTime In', or any status containing 'In'
         checkins = sorted_records[sorted_records['Status'].str.contains('In', case=False, na=False)]
-        # Find all check-outs (any status containing 'Out')  
+        # Find all check-outs: 'C/Out', 'OverTime Out', or any status containing 'Out'  
         checkouts = sorted_records[sorted_records['Status'].str.contains('Out', case=False, na=False)]
         
-        # Get first check-in and last check-out
+        # Get EARLIEST check-in (lowest time) and LATEST check-out (highest time)
+        # This ensures we capture the complete work period even with multiple entries
         start_time = checkins.iloc[0]['Time_parsed'] if not checkins.empty else None
         end_time = checkouts.iloc[-1]['Time_parsed'] if not checkouts.empty else None
         
@@ -290,9 +358,14 @@ class TimesheetProcessor:
             st.error(f"❌ Error loading file: {str(e)}")
             return None
 
-    def consolidate_timesheet_data(self, df) -> pd.DataFrame:
+    def consolidate_timesheet_data(self, df, show_warnings=True) -> pd.DataFrame:
         """Master function to consolidate timesheet data and apply business rules
-        ENSURES ALL EMPLOYEES APPEAR FOR ALL WORKING DAYS FROM DAY 1 TO END OF MONTH"""
+        ENSURES ALL EMPLOYEES APPEAR FOR ALL WORKING DAYS FROM DAY 1 TO END OF MONTH
+        
+        Args:
+            df: DataFrame with timesheet data
+            show_warnings: Whether to display estimation warnings for missing check-in/out data
+        """
         
         # Make a copy and clean unnecessary columns
         df_work = df.copy()
@@ -343,7 +416,8 @@ class TimesheetProcessor:
             elif start_time and not end_time:
                 # Missing check-out - estimate 8 hours later
                 end_time = (datetime.combine(date, start_time) + timedelta(hours=8)).time()
-                st.warning(f"⚠️ Missing check-out for {employee} on {date.strftime('%d/%m/%Y')} - estimated")
+                if show_warnings:
+                    st.warning(f"⚠️ Missing check-out for {employee} on {date.strftime('%d/%m/%Y')} - estimated")
                 shift_type = self.determine_shift_type(start_time)
                 total_hours = self.calculate_total_work_hours(start_time, end_time, shift_type, date)
                 overtime_hours = self.calculate_overtime_hours(start_time, end_time, shift_type, date)
@@ -351,7 +425,8 @@ class TimesheetProcessor:
             elif end_time and not start_time:
                 # Missing check-in - estimate 8 hours before
                 start_time = (datetime.combine(date, end_time) - timedelta(hours=8)).time()
-                st.warning(f"⚠️ Missing check-in for {employee} on {date.strftime('%d/%m/%Y')} - estimated")
+                if show_warnings:
+                    st.warning(f"⚠️ Missing check-in for {employee} on {date.strftime('%d/%m/%Y')} - estimated")
                 shift_type = self.determine_shift_type(start_time)
                 total_hours = self.calculate_total_work_hours(start_time, end_time, shift_type, date)
                 overtime_hours = self.calculate_overtime_hours(start_time, end_time, shift_type, date)
@@ -371,7 +446,8 @@ class TimesheetProcessor:
                 'End Time': end_time.strftime('%H:%M:%S') if end_time else 'No Data',
                 'Shift Time': shift_type,
                 'Total Hours': total_hours,
-                'Overtime Hours': overtime_hours,
+                'Overtime Hours': self.format_hours_to_time(overtime_hours),
+                'Overtime Hours (Decimal)': overtime_hours,  # Keep decimal version for calculations
                 'Original Entries': len(day_data),
                 'Entry Details': entry_details
             }
@@ -396,8 +472,17 @@ class TimesheetProcessor:
 def create_dashboard():
     """Main dashboard function"""
     
-    # Header
-    st.markdown('<h1 class="main-header">🧹 Timesheet Consolidator Dashboard</h1>', unsafe_allow_html=True)
+    # Header with Author Name in Right Corner
+    st.markdown('''
+    <div class="author-header">
+        Developed by Olivier Dusabamahoro
+    </div>
+    <div class="header-container">
+        <div class="title-section">
+            <h1 class="main-header">🧹 Timesheet Consolidator Dashboard</h1>
+        </div>
+    </div>
+    ''', unsafe_allow_html=True)
     st.markdown("""
     <div class="info-box">
     <h3>🎯 Professional Timesheet Data Processing System</h3>
@@ -411,6 +496,14 @@ def create_dashboard():
     # Sidebar
     with st.sidebar:
         st.header("📋 Dashboard Controls")
+        
+        # Configuration Section
+        st.subheader("⚙️ Configuration")
+        show_estimation_warnings = st.checkbox(
+            "Show Estimation Warnings",
+            value=False,
+            help="Show warnings when check-in/check-out times are estimated for incomplete records"
+        )
         
         # Quick Load Section
         st.subheader("⚡ Quick Load")
@@ -527,7 +620,7 @@ def create_dashboard():
         
         if st.button("🧹 Start Consolidation Process", type="primary"):
             with st.spinner("Consolidating duplicate entries and applying business rules..."):
-                consolidated_data = processor.consolidate_timesheet_data(raw_data)
+                consolidated_data = processor.consolidate_timesheet_data(raw_data, show_estimation_warnings)
             
             if not consolidated_data.empty:
                 # Store in session state for later use
@@ -605,21 +698,27 @@ def create_dashboard():
             
             with col2:
                 # Overtime Analysis
-                overtime_shifts = consolidated_data[consolidated_data['Overtime Hours'] > 0]
-                total_overtime = consolidated_data['Overtime Hours'].sum()
+                overtime_shifts = consolidated_data[consolidated_data['Overtime Hours (Decimal)'] > 0]
+                total_overtime_decimal = consolidated_data['Overtime Hours (Decimal)'].sum()
+                total_overtime_formatted = processor.format_hours_to_time(total_overtime_decimal)
+                avg_overtime_per_shift = total_overtime_decimal / len(consolidated_data)
+                avg_overtime_formatted = processor.format_hours_to_time(avg_overtime_per_shift)
                 
                 st.metric("💼 Shifts with Overtime", f"{len(overtime_shifts):,}")
-                st.metric("⏰ Total Overtime Hours", f"{total_overtime:.2f}")
-                st.metric("📊 Average OT per Shift", f"{total_overtime/len(consolidated_data):.2f}h")
+                st.metric("⏰ Total Overtime Hours", total_overtime_formatted)
+                st.metric("📊 Average OT per Shift", avg_overtime_formatted)
         
         with tab2:
             # Employee Analysis
             employee_stats = consolidated_data.groupby('Name').agg({
                 'Total Hours': 'sum',
-                'Overtime Hours': 'sum',
+                'Overtime Hours (Decimal)': 'sum',
                 'Date': 'count'
             }).reset_index()
-            employee_stats.columns = ['Employee', 'Total Hours', 'Overtime Hours', 'Days Worked']
+            employee_stats.columns = ['Employee', 'Total Hours', 'Overtime Hours (Decimal)', 'Days Worked']
+            
+            # Format overtime hours for display
+            employee_stats['Overtime Hours'] = employee_stats['Overtime Hours (Decimal)'].apply(processor.format_hours_to_time)
             employee_stats = employee_stats.sort_values('Total Hours', ascending=False)
             
             st.dataframe(employee_stats, use_container_width=True)
@@ -642,10 +741,13 @@ def create_dashboard():
             consolidated_data['Date_parsed'] = pd.to_datetime(consolidated_data['Date'], format='%d/%m/%Y')
             daily_stats = consolidated_data.groupby('Date_parsed').agg({
                 'Total Hours': 'sum',
-                'Overtime Hours': 'sum',
+                'Overtime Hours (Decimal)': 'sum',
                 'Name': 'count'
             }).reset_index()
-            daily_stats.columns = ['Date', 'Total Hours', 'Overtime Hours', 'Employees']
+            daily_stats.columns = ['Date', 'Total Hours', 'Overtime Hours (Decimal)', 'Employees']
+            
+            # Format overtime hours for display
+            daily_stats['Overtime Hours'] = daily_stats['Overtime Hours (Decimal)'].apply(processor.format_hours_to_time)
             
             fig_daily = px.line(
                 daily_stats,
@@ -658,7 +760,7 @@ def create_dashboard():
         
         with tab4:
             # Overtime Analysis
-            overtime_data = consolidated_data[consolidated_data['Overtime Hours'] > 0]
+            overtime_data = consolidated_data[consolidated_data['Overtime Hours (Decimal)'] > 0]
             
             if not overtime_data.empty:
                 # Overtime distribution
@@ -672,9 +774,14 @@ def create_dashboard():
                 st.plotly_chart(fig_ot, use_container_width=True)
                 
                 # Overtime by shift type
-                ot_by_shift = overtime_data.groupby('Shift Time')['Overtime Hours'].agg(['count', 'sum', 'mean']).reset_index()
-                ot_by_shift.columns = ['Shift Type', 'Count', 'Total OT', 'Average OT']
-                st.dataframe(ot_by_shift, use_container_width=True)
+                ot_by_shift = overtime_data.groupby('Shift Time')['Overtime Hours (Decimal)'].agg(['count', 'sum', 'mean']).reset_index()
+                ot_by_shift.columns = ['Shift Type', 'Count', 'Total OT (Decimal)', 'Average OT (Decimal)']
+                # Format the overtime columns for display
+                ot_by_shift['Total OT'] = ot_by_shift['Total OT (Decimal)'].apply(processor.format_hours_to_time)
+                ot_by_shift['Average OT'] = ot_by_shift['Average OT (Decimal)'].apply(processor.format_hours_to_time)
+                # Display with formatted columns
+                display_ot_by_shift = ot_by_shift[['Shift Type', 'Count', 'Total OT', 'Average OT']]
+                st.dataframe(display_ot_by_shift, use_container_width=True)
             else:
                 st.info("📊 No overtime hours found in the data")
         
@@ -719,8 +826,8 @@ def create_dashboard():
                         consolidated_data['Date'].max(),
                         len(consolidated_data[consolidated_data['Shift Time'] == 'Day Shift']),
                         len(consolidated_data[consolidated_data['Shift Time'] == 'Night Shift']),
-                        len(consolidated_data[consolidated_data['Overtime Hours'] > 0]),
-                        f"{consolidated_data['Overtime Hours'].sum():.2f}"
+                        len(consolidated_data[consolidated_data['Overtime Hours (Decimal)'] > 0]),
+                        processor.format_hours_to_time(consolidated_data['Overtime Hours (Decimal)'].sum())
                     ]
                 }
                 pd.DataFrame(summary_data).to_excel(writer, sheet_name='Summary', index=False)
@@ -739,6 +846,9 @@ def create_dashboard():
     st.markdown("""
     <div style="text-align: center; color: #666;">
     <p>🧹 <strong>Timesheet Consolidator Dashboard</strong> | Professional Data Processing System | October 2025</p>
+    <p style="font-size: 0.9rem; margin-top: 0.5rem;">
+    Developed by <strong style="color: #1f77b4;">Olivier Dusabamahoro</strong>
+    </p>
     </div>
     """, unsafe_allow_html=True)
 

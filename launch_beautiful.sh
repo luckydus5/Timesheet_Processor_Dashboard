@@ -1,4 +1,4 @@
-#!/bin/bash
+/bin/bash
 
 # 🎨 Beautiful Dashboard Launcher
 echo "✨ Starting Beautiful Timesheet Dashboard..."
