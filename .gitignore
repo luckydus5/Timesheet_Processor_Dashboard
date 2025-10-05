@@ -1,0 +1,50 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+.venv/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# Output files
+*.xlsx
+*.csv
+Created Files/
+*_Timesheet_*.csv
+*_Timesheet_*.xlsx
+Consolidated_Timesheet_*.csv
+Consolidated_Timesheet_*.xlsx
+Cleaned_Timesheet_*.csv
+Cleaned_Timesheet_*.xlsx
+Company_Processed_Timesheet_*.csv
+Company_Processed_Timesheet_*.xlsx
+TimeCheck.csv
+
+# Temporary files
+*.tmp
+*.temp
+*~
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Pip install output files (prevent accidental creation)
+=*.*.*
+
+# Log files
+*.log
