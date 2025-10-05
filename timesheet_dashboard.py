@@ -43,27 +43,16 @@ st.markdown("""
         color: #1f77b4;
         text-align: center;
         margin-bottom: 2rem;
+        margin-top: 4rem;
     }
     .header-container {
         display: flex;
         justify-content: space-between;
         align-items: center;
         margin-bottom: 2rem;
+        margin-top: 2rem;
     }
-    .author-header {
-        position: absolute;
-        right: 20px;
-        top: 20px;
-        font-size: 1.1rem;
-        color: #1f77b4;
-        font-weight: bold;
-        text-align: right;
-        background-color: rgba(255, 255, 255, 0.9);
-        padding: 8px 12px;
-        border-radius: 8px;
-        box-shadow: 0 2px 6px rgba(0,0,0,0.1);
-        z-index: 1000;
-    }
+        .author-header {\n        position: absolute;\n        right: 20px;\n        top: 80px;\n        font-size: 1.1rem;\n        color: #1f77b4;\n        font-weight: bold;\n        text-align: right;\n        background-color: rgba(255, 255, 255, 0.9);\n        padding: 12px 18px;\n        border-radius: 10px;\n        box-shadow: 0 3px 8px rgba(0,0,0,0.15);\n        z-index: 1000;\n        border: 1px solid rgba(31, 119, 180, 0.2);\n    }\n    \n    .author-header a {\n        color: #1e3c72;\n        text-decoration: none;\n        font-weight: 600;\n        transition: all 0.3s ease;\n    }\n    \n    .author-header a:hover {\n        color: #2a5298;\n        text-decoration: underline;\n        cursor: pointer;\n    }
     .title-section {
         flex: 1;
         text-align: center;
@@ -472,10 +461,10 @@ class TimesheetProcessor:
 def create_dashboard():
     """Main dashboard function"""
     
-    # Header with Author Name in Right Corner
+    # Beautiful Header with Enhanced Design
     st.markdown('''
     <div class="author-header">
-        Developed by Olivier Dusabamahoro
+        Developed by <a href="https://olivierdusa.me" target="_blank" style="color: #1e3c72; text-decoration: none; font-weight: 600;">Olivier Dusabamahoro</a>
     </div>
     <div class="header-container">
         <div class="title-section">
@@ -483,10 +472,12 @@ def create_dashboard():
         </div>
     </div>
     ''', unsafe_allow_html=True)
+    
     st.markdown("""
     <div class="info-box">
-    <h3>🎯 Professional Timesheet Data Processing System</h3>
-    <p><strong>Features:</strong> File Upload • Duplicate Consolidation • Business Rules • Data Visualization • Export</p>
+    <h3>Timesheet Data Processing System</h3>
+    <p><strong>Features:</strong> File Upload • Duplicate Consolidation • Data Cleaning Rules • Data Visualization • Export</p>
+    <p><strong>Modern UI:</strong> Beautiful Blue Theme • Interactive Charts • Professional Analytics • Export Capabilities</p>
     </div>
     """, unsafe_allow_html=True)
     
@@ -523,8 +514,8 @@ def create_dashboard():
             help="Upload Excel or CSV timesheet files"
         )
         
-        # Business Rules Display
-        st.subheader("🎯 Business Rules")
+        # Data Cleaning Rules Display
+        st.subheader("📋 Data Cleaning Rules")
         st.markdown("""
         **Day Shift (08:00 AM - 17:00 PM):**
         - Overtime: Only after 17:00 PM
@@ -847,7 +838,7 @@ def create_dashboard():
     <div style="text-align: center; color: #666;">
     <p>🧹 <strong>Timesheet Consolidator Dashboard</strong> | Professional Data Processing System | October 2025</p>
     <p style="font-size: 0.9rem; margin-top: 0.5rem;">
-    Developed by <strong style="color: #1f77b4;">Olivier Dusabamahoro</strong>
+    Developed by <a href="https://olivierdusa.me" target="_blank" style="color: #1f77b4; text-decoration: none; font-weight: bold;">Olivier Dusabamahoro</a>
     </p>
     </div>
     """, unsafe_allow_html=True)
