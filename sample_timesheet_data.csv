@@ -1,0 +1,249 @@
+Name,Date,Time,Status,Department
+John Smith,01/10/2025,06:42:00,C/In,Administration
+John Smith,01/10/2025,17:37:00,C/Out,Operations
+John Smith,01/10/2025,06:52:00,C/In,Operations
+Mary Johnson,01/10/2025,07:49:00,C/In,Administration
+Mary Johnson,01/10/2025,18:42:00,C/Out,Operations
+Mary Johnson,01/10/2025,19:47:00,OverTime Out,Operations
+Mary Johnson,01/10/2025,08:16:00,C/In,Administration
+David Brown,01/10/2025,08:50:00,C/In,Operations
+David Brown,01/10/2025,18:55:00,C/Out,Administration
+David Brown,01/10/2025,08:55:00,C/In,Administration
+Sarah Wilson,01/10/2025,07:40:00,C/In,Administration
+Sarah Wilson,01/10/2025,18:07:00,C/Out,Operations
+Sarah Wilson,01/10/2025,20:52:00,OverTime Out,Administration
+Sarah Wilson,01/10/2025,07:50:00,C/In,Operations
+Michael Davis,01/10/2025,06:57:00,C/In,Operations
+Michael Davis,01/10/2025,16:58:00,C/Out,Administration
+Michael Davis,01/10/2025,07:19:00,C/In,Operations
+Lisa Anderson,01/10/2025,06:21:00,C/In,Administration
+Lisa Anderson,01/10/2025,15:44:00,C/Out,Administration
+Lisa Anderson,01/10/2025,06:43:00,C/In,Operations
+Robert Taylor,01/10/2025,07:07:00,C/In,Administration
+Robert Taylor,01/10/2025,16:14:00,C/Out,Operations
+Jennifer White,01/10/2025,08:23:00,C/In,Operations
+Jennifer White,01/10/2025,18:38:00,C/Out,Administration
+Jennifer White,01/10/2025,08:49:00,C/In,Administration
+John Smith,02/10/2025,07:53:00,C/In,Operations
+John Smith,02/10/2025,17:46:00,C/Out,Administration
+John Smith,02/10/2025,08:05:00,C/In,Administration
+Mary Johnson,02/10/2025,07:25:00,C/In,Administration
+Mary Johnson,02/10/2025,17:40:00,C/Out,Administration
+Mary Johnson,02/10/2025,07:43:00,C/In,Administration
+David Brown,02/10/2025,07:40:00,C/In,Operations
+David Brown,02/10/2025,15:44:00,C/Out,Operations
+David Brown,02/10/2025,07:45:00,C/In,Administration
+Sarah Wilson,02/10/2025,07:27:00,C/In,Administration
+Sarah Wilson,02/10/2025,16:39:00,C/Out,Operations
+Sarah Wilson,02/10/2025,18:40:00,OverTime Out,Operations
+Sarah Wilson,02/10/2025,07:45:00,C/In,Operations
+Michael Davis,02/10/2025,08:50:00,C/In,Administration
+Michael Davis,02/10/2025,18:49:00,C/Out,Administration
+Lisa Anderson,02/10/2025,08:48:00,C/In,Administration
+Lisa Anderson,02/10/2025,17:38:00,C/Out,Administration
+Lisa Anderson,02/10/2025,09:12:00,C/In,Operations
+Robert Taylor,02/10/2025,08:18:00,C/In,Administration
+Robert Taylor,02/10/2025,17:18:00,C/Out,Administration
+Robert Taylor,02/10/2025,08:32:00,C/In,Administration
+Jennifer White,02/10/2025,06:03:00,C/In,Administration
+Jennifer White,02/10/2025,15:26:00,C/Out,Administration
+Jennifer White,02/10/2025,06:08:00,C/In,Operations
+John Smith,03/10/2025,06:56:00,C/In,Operations
+John Smith,03/10/2025,17:38:00,C/Out,Operations
+John Smith,03/10/2025,07:04:00,C/In,Operations
+Mary Johnson,03/10/2025,07:47:00,C/In,Operations
+Mary Johnson,03/10/2025,16:35:00,C/Out,Administration
+Mary Johnson,03/10/2025,08:04:00,C/In,Operations
+David Brown,03/10/2025,07:29:00,C/In,Operations
+David Brown,03/10/2025,16:15:00,C/Out,Operations
+Sarah Wilson,03/10/2025,08:51:00,C/In,Administration
+Sarah Wilson,03/10/2025,17:37:00,C/Out,Operations
+Sarah Wilson,03/10/2025,19:08:00,OverTime Out,Administration
+Sarah Wilson,03/10/2025,08:57:00,C/In,Administration
+Sarah Wilson,03/10/2025,17:43:00,OverTime In,Administration
+Michael Davis,03/10/2025,08:49:00,C/In,Administration
+Michael Davis,03/10/2025,16:53:00,C/Out,Administration
+Lisa Anderson,03/10/2025,07:19:00,C/In,Administration
+Lisa Anderson,03/10/2025,16:48:00,C/Out,Operations
+Lisa Anderson,03/10/2025,07:44:00,C/In,Administration
+Robert Taylor,03/10/2025,08:05:00,C/In,Administration
+Robert Taylor,03/10/2025,18:51:00,C/Out,Administration
+Robert Taylor,03/10/2025,08:21:00,C/In,Administration
+Jennifer White,03/10/2025,07:56:00,C/In,Operations
+Jennifer White,03/10/2025,16:24:00,C/Out,Operations
+Jennifer White,03/10/2025,08:06:00,C/In,Administration
+John Smith,04/10/2025,06:01:00,C/In,Administration
+John Smith,04/10/2025,14:53:00,C/Out,Administration
+Mary Johnson,04/10/2025,06:37:00,C/In,Administration
+Mary Johnson,04/10/2025,15:21:00,C/Out,Operations
+Mary Johnson,04/10/2025,17:44:00,OverTime Out,Administration
+Mary Johnson,04/10/2025,06:50:00,C/In,Operations
+David Brown,04/10/2025,06:22:00,C/In,Operations
+David Brown,04/10/2025,16:43:00,C/Out,Administration
+David Brown,04/10/2025,18:48:00,OverTime Out,Operations
+David Brown,04/10/2025,06:51:00,C/In,Administration
+David Brown,04/10/2025,16:55:00,OverTime In,Operations
+Sarah Wilson,04/10/2025,06:50:00,C/In,Operations
+Sarah Wilson,04/10/2025,15:58:00,C/Out,Administration
+Sarah Wilson,04/10/2025,07:09:00,C/In,Administration
+Michael Davis,04/10/2025,08:22:00,C/In,Administration
+Michael Davis,04/10/2025,18:34:00,C/Out,Operations
+Michael Davis,04/10/2025,21:31:00,OverTime Out,Operations
+Lisa Anderson,04/10/2025,07:23:00,C/In,Operations
+Lisa Anderson,04/10/2025,16:07:00,C/Out,Operations
+Lisa Anderson,04/10/2025,07:46:00,C/In,Operations
+Robert Taylor,04/10/2025,08:43:00,C/In,Operations
+Robert Taylor,04/10/2025,16:54:00,C/Out,Administration
+Jennifer White,04/10/2025,08:14:00,C/In,Administration
+Jennifer White,04/10/2025,16:29:00,C/Out,Operations
+Jennifer White,04/10/2025,17:30:00,OverTime Out,Administration
+John Smith,05/10/2025,06:55:00,C/In,Operations
+John Smith,05/10/2025,17:14:00,C/Out,Operations
+John Smith,05/10/2025,18:22:00,OverTime Out,Administration
+John Smith,05/10/2025,07:00:00,C/In,Administration
+John Smith,05/10/2025,17:29:00,OverTime In,Operations
+Mary Johnson,05/10/2025,07:42:00,C/In,Operations
+Mary Johnson,05/10/2025,17:41:00,C/Out,Operations
+Mary Johnson,05/10/2025,07:52:00,C/In,Administration
+David Brown,05/10/2025,06:22:00,C/In,Administration
+David Brown,05/10/2025,16:59:00,C/Out,Administration
+Sarah Wilson,05/10/2025,06:48:00,C/In,Administration
+Sarah Wilson,05/10/2025,17:11:00,C/Out,Administration
+Michael Davis,05/10/2025,07:54:00,C/In,Administration
+Michael Davis,05/10/2025,16:46:00,C/Out,Operations
+Michael Davis,05/10/2025,08:22:00,C/In,Operations
+Lisa Anderson,05/10/2025,08:46:00,C/In,Administration
+Lisa Anderson,05/10/2025,17:25:00,C/Out,Administration
+Robert Taylor,05/10/2025,08:39:00,C/In,Operations
+Robert Taylor,05/10/2025,16:41:00,C/Out,Operations
+Robert Taylor,05/10/2025,09:04:00,C/In,Operations
+Jennifer White,05/10/2025,08:38:00,C/In,Operations
+Jennifer White,05/10/2025,19:14:00,C/Out,Administration
+Jennifer White,05/10/2025,08:55:00,C/In,Administration
+John Smith,06/10/2025,08:41:00,C/In,Administration
+John Smith,06/10/2025,19:13:00,C/Out,Administration
+John Smith,06/10/2025,22:05:00,OverTime Out,Administration
+John Smith,06/10/2025,09:11:00,C/In,Administration
+Mary Johnson,06/10/2025,06:41:00,C/In,Operations
+Mary Johnson,06/10/2025,15:08:00,C/Out,Operations
+Mary Johnson,06/10/2025,06:46:00,C/In,Administration
+David Brown,06/10/2025,06:27:00,C/In,Administration
+David Brown,06/10/2025,16:05:00,C/Out,Administration
+David Brown,06/10/2025,17:13:00,OverTime Out,Administration
+David Brown,06/10/2025,06:38:00,C/In,Operations
+Sarah Wilson,06/10/2025,08:17:00,C/In,Operations
+Sarah Wilson,06/10/2025,18:06:00,C/Out,Administration
+Sarah Wilson,06/10/2025,21:01:00,OverTime Out,Administration
+Sarah Wilson,06/10/2025,08:31:00,C/In,Administration
+Michael Davis,06/10/2025,08:33:00,C/In,Administration
+Michael Davis,06/10/2025,18:19:00,C/Out,Operations
+Michael Davis,06/10/2025,08:57:00,C/In,Operations
+Lisa Anderson,06/10/2025,08:07:00,C/In,Operations
+Lisa Anderson,06/10/2025,16:52:00,C/Out,Administration
+Lisa Anderson,06/10/2025,08:21:00,C/In,Operations
+Robert Taylor,06/10/2025,06:01:00,C/In,Administration
+Robert Taylor,06/10/2025,16:15:00,C/Out,Administration
+Robert Taylor,06/10/2025,19:09:00,OverTime Out,Operations
+Robert Taylor,06/10/2025,06:10:00,C/In,Administration
+Jennifer White,06/10/2025,06:47:00,C/In,Administration
+Jennifer White,06/10/2025,14:47:00,C/Out,Administration
+John Smith,07/10/2025,06:45:00,C/In,Administration
+John Smith,07/10/2025,14:57:00,C/Out,Operations
+John Smith,07/10/2025,07:14:00,C/In,Administration
+Mary Johnson,07/10/2025,06:20:00,C/In,Administration
+Mary Johnson,07/10/2025,14:47:00,C/Out,Administration
+Mary Johnson,07/10/2025,06:33:00,C/In,Administration
+David Brown,07/10/2025,06:26:00,C/In,Operations
+David Brown,07/10/2025,16:33:00,C/Out,Operations
+David Brown,07/10/2025,06:40:00,C/In,Operations
+Sarah Wilson,07/10/2025,08:46:00,C/In,Operations
+Sarah Wilson,07/10/2025,19:30:00,C/Out,Administration
+Sarah Wilson,07/10/2025,20:50:00,OverTime Out,Operations
+Sarah Wilson,07/10/2025,09:12:00,C/In,Operations
+Sarah Wilson,07/10/2025,19:38:00,OverTime In,Operations
+Michael Davis,07/10/2025,07:07:00,C/In,Operations
+Michael Davis,07/10/2025,17:29:00,C/Out,Operations
+Michael Davis,07/10/2025,07:22:00,C/In,Operations
+Lisa Anderson,07/10/2025,06:39:00,C/In,Administration
+Lisa Anderson,07/10/2025,15:39:00,C/Out,Operations
+Lisa Anderson,07/10/2025,17:28:00,OverTime Out,Administration
+Lisa Anderson,07/10/2025,06:46:00,C/In,Administration
+Robert Taylor,07/10/2025,07:56:00,C/In,Administration
+Robert Taylor,07/10/2025,16:23:00,C/Out,Operations
+Robert Taylor,07/10/2025,08:07:00,C/In,Operations
+Jennifer White,07/10/2025,08:21:00,C/In,Administration
+Jennifer White,07/10/2025,19:15:00,C/Out,Administration
+Jennifer White,07/10/2025,08:30:00,C/In,Operations
+John Smith,08/10/2025,08:21:00,C/In,Administration
+John Smith,08/10/2025,18:32:00,C/Out,Operations
+John Smith,08/10/2025,08:34:00,C/In,Administration
+Mary Johnson,08/10/2025,08:19:00,C/In,Operations
+Mary Johnson,08/10/2025,17:33:00,C/Out,Administration
+Mary Johnson,08/10/2025,08:26:00,C/In,Administration
+David Brown,08/10/2025,06:55:00,C/In,Administration
+David Brown,08/10/2025,15:09:00,C/Out,Administration
+Sarah Wilson,08/10/2025,07:26:00,C/In,Administration
+Sarah Wilson,08/10/2025,18:18:00,C/Out,Administration
+Sarah Wilson,08/10/2025,07:31:00,C/In,Administration
+Michael Davis,08/10/2025,06:39:00,C/In,Administration
+Michael Davis,08/10/2025,14:47:00,C/Out,Administration
+Michael Davis,08/10/2025,07:07:00,C/In,Administration
+Lisa Anderson,08/10/2025,08:00:00,C/In,Administration
+Lisa Anderson,08/10/2025,17:03:00,C/Out,Administration
+Robert Taylor,08/10/2025,06:09:00,C/In,Operations
+Robert Taylor,08/10/2025,15:28:00,C/Out,Administration
+Robert Taylor,08/10/2025,17:20:00,OverTime Out,Operations
+Robert Taylor,08/10/2025,06:36:00,C/In,Administration
+Jennifer White,08/10/2025,06:25:00,C/In,Administration
+Jennifer White,08/10/2025,17:08:00,C/Out,Administration
+Jennifer White,08/10/2025,06:43:00,C/In,Operations
+John Smith,09/10/2025,08:33:00,C/In,Operations
+John Smith,09/10/2025,18:41:00,C/Out,Administration
+John Smith,09/10/2025,08:41:00,C/In,Administration
+Mary Johnson,09/10/2025,07:31:00,C/In,Operations
+Mary Johnson,09/10/2025,16:48:00,C/Out,Administration
+Mary Johnson,09/10/2025,07:57:00,C/In,Administration
+David Brown,09/10/2025,06:17:00,C/In,Operations
+David Brown,09/10/2025,16:59:00,C/Out,Administration
+David Brown,09/10/2025,06:33:00,C/In,Administration
+Sarah Wilson,09/10/2025,06:19:00,C/In,Operations
+Sarah Wilson,09/10/2025,17:08:00,C/Out,Operations
+Sarah Wilson,09/10/2025,06:33:00,C/In,Administration
+Michael Davis,09/10/2025,08:10:00,C/In,Operations
+Michael Davis,09/10/2025,17:46:00,C/Out,Administration
+Lisa Anderson,09/10/2025,06:04:00,C/In,Administration
+Lisa Anderson,09/10/2025,14:52:00,C/Out,Administration
+Lisa Anderson,09/10/2025,06:17:00,C/In,Operations
+Robert Taylor,09/10/2025,07:57:00,C/In,Administration
+Robert Taylor,09/10/2025,18:23:00,C/Out,Administration
+Robert Taylor,09/10/2025,08:11:00,C/In,Operations
+Jennifer White,09/10/2025,07:34:00,C/In,Administration
+Jennifer White,09/10/2025,17:36:00,C/Out,Operations
+Jennifer White,09/10/2025,19:28:00,OverTime Out,Administration
+Jennifer White,09/10/2025,07:59:00,C/In,Operations
+Jennifer White,09/10/2025,17:43:00,OverTime In,Administration
+John Smith,10/10/2025,08:49:00,C/In,Administration
+John Smith,10/10/2025,19:03:00,C/Out,Administration
+John Smith,10/10/2025,09:05:00,C/In,Administration
+Mary Johnson,10/10/2025,06:38:00,C/In,Administration
+Mary Johnson,10/10/2025,17:29:00,C/Out,Operations
+Mary Johnson,10/10/2025,19:34:00,OverTime Out,Administration
+Mary Johnson,10/10/2025,07:03:00,C/In,Administration
+Mary Johnson,10/10/2025,17:39:00,OverTime In,Administration
+David Brown,10/10/2025,07:21:00,C/In,Operations
+David Brown,10/10/2025,17:51:00,C/Out,Administration
+David Brown,10/10/2025,07:47:00,C/In,Operations
+Sarah Wilson,10/10/2025,06:30:00,C/In,Administration
+Sarah Wilson,10/10/2025,14:38:00,C/Out,Administration
+Sarah Wilson,10/10/2025,06:42:00,C/In,Administration
+Michael Davis,10/10/2025,08:25:00,C/In,Operations
+Michael Davis,10/10/2025,17:07:00,C/Out,Administration
+Lisa Anderson,10/10/2025,07:08:00,C/In,Operations
+Lisa Anderson,10/10/2025,17:41:00,C/Out,Administration
+Lisa Anderson,10/10/2025,07:33:00,C/In,Operations
+Robert Taylor,10/10/2025,07:27:00,C/In,Administration
+Robert Taylor,10/10/2025,17:31:00,C/Out,Operations
+Robert Taylor,10/10/2025,07:53:00,C/In,Administration
+Jennifer White,10/10/2025,08:07:00,C/In,Administration
+Jennifer White,10/10/2025,17:04:00,C/Out,Operations
+Jennifer White,10/10/2025,19:54:00,OverTime Out,Administration
