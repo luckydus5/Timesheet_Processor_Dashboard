@@ -289,6 +289,59 @@ class TimesheetProcessor:
         regular = total_hours - overtime_hours
         return round(max(regular, 0), 2)
 
+    def add_monthly_overtime_summary(self, df):
+        """Add monthly overtime summary columns for each person"""
+        if df.empty:
+            return df
+        
+        # Convert date strings to datetime for proper month extraction
+        df['Date_dt'] = pd.to_datetime(df['Date'], format='%d/%m/%Y')
+        df['Year_Month'] = df['Date_dt'].dt.to_period('M')
+        
+        # Calculate monthly overtime statistics for each person
+        monthly_stats = []
+        
+        for name in df['Name'].unique():
+            name_data = df[df['Name'] == name]
+            
+            for year_month in name_data['Year_Month'].unique():
+                month_data = name_data[name_data['Year_Month'] == year_month]
+                
+                # Calculate total overtime hours for the month
+                total_overtime_hours = month_data['Overtime Hours (Decimal)'].sum()
+                
+                # Count days with overtime (where overtime > 0)
+                overtime_days = len(month_data[month_data['Overtime Hours (Decimal)'] > 0])
+                
+                # Format total overtime as HH:MM:SS
+                total_overtime_formatted = self.format_hours_to_time(total_overtime_hours)
+                
+                # Create summary text
+                monthly_summary = f"Month Total: {total_overtime_formatted} | OT Days: {overtime_days}"
+                
+                monthly_stats.append({
+                    'Name': name,
+                    'Year_Month': year_month,
+                    'Monthly_OT_Hours': total_overtime_hours,
+                    'Monthly_OT_Days': overtime_days,
+                    'Monthly_OT_Summary': monthly_summary
+                })
+        
+        # Create monthly stats dataframe
+        monthly_df = pd.DataFrame(monthly_stats)
+        
+        # Merge back to original dataframe
+        df = df.merge(
+            monthly_df[['Name', 'Year_Month', 'Monthly_OT_Summary']], 
+            on=['Name', 'Year_Month'], 
+            how='left'
+        )
+        
+        # Clean up temporary columns
+        df = df.drop(['Date_dt', 'Year_Month'], axis=1)
+        
+        return df
+
     def load_timesheet_file(self, uploaded_file) -> Optional[pd.DataFrame]:
         """Load timesheet data from uploaded file"""
         try:
@@ -476,6 +529,9 @@ class TimesheetProcessor:
         consolidated_df = pd.DataFrame(consolidated_rows)
         consolidated_df = consolidated_df.sort_values(['Name', 'Date'])
         
+        # Calculate monthly overtime summary for each person
+        consolidated_df = self.add_monthly_overtime_summary(consolidated_df)
+        
         st.success(f"✅ Successfully processed {len(consolidated_df)} actual work records!")
         
         return consolidated_df
@@ -506,7 +562,7 @@ def display_unit_tests_tab():
             'Status': ['✅ Covered'] * 8,
             'Test Count': [3, 5, 4, 2, 2, 2, 2, 3]
         })
-        st.dataframe(test_coverage, use_container_width=True)
+        st.dataframe(test_coverage, width="stretch")
     
     with col2:
         st.subheader("🎯 Quick Actions")
@@ -574,7 +630,7 @@ def display_integration_tests_tab():
             ],
             'Status': ['✅ Available'] * 8
         })
-        st.dataframe(test_scenarios, use_container_width=True)
+        st.dataframe(test_scenarios, width="stretch")
         
         if st.button("🚀 Run Integration Tests", type="primary"):
             with st.spinner("Running integration tests..."):
@@ -591,7 +647,7 @@ def display_integration_tests_tab():
         if st.button("📊 Generate Test Data"):
             test_data = generate_test_timesheet_data(num_employees, num_days)
             st.success(f"Generated {len(test_data)} test records")
-            st.dataframe(test_data.head(10), use_container_width=True)
+            st.dataframe(test_data.head(10), width="stretch")
             
             # Download test data
             csv = test_data.to_csv(index=False)
@@ -687,7 +743,7 @@ def display_performance_tests_tab():
                 
                 fig = px.pie(memory_data, values='Memory (GB)', names='Type', 
                             title="Memory Usage")
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, width="stretch")
                 
             except Exception as e:
                 st.error(f"Error getting system info: {e}")
@@ -729,7 +785,7 @@ def display_regression_tests_tab():
             ],
             'Status': ['✅ Validated'] * 8
         })
-        st.dataframe(baseline_scenarios, use_container_width=True)
+        st.dataframe(baseline_scenarios, width="stretch")
     
     with col2:
         st.subheader("🎯 Regression Testing")
@@ -758,7 +814,7 @@ def display_regression_tests_tab():
             'Failed': [0, 1, 0],
             'Status': ['✅ Pass', '⚠️ 1 Fail', '✅ Pass']
         })
-        st.dataframe(test_history, use_container_width=True)
+        st.dataframe(test_history, width="stretch")
 
 
 def display_configuration_tab():
@@ -1026,7 +1082,7 @@ def create_dashboard():
             
             # Show sample data
             st.subheader("📋 Sample Data")
-            st.dataframe(raw_data[['Name', 'Date', 'Time', 'Status']].head(10), use_container_width=True)
+            st.dataframe(raw_data[['Name', 'Date', 'Time', 'Status']].head(10), width="stretch")
             
             # Duplicate Analysis
             st.subheader("🔍 Duplicate Entry Analysis")
@@ -1055,7 +1111,7 @@ def create_dashboard():
                 color_continuous_scale='Blues'
             )
             fig_dist.update_layout(showlegend=False)
-            st.plotly_chart(fig_dist, use_container_width=True)
+            st.plotly_chart(fig_dist, width="stretch")
             
             # Consolidation Process
             st.subheader("🚀 Data Consolidation")
@@ -1099,7 +1155,7 @@ def create_dashboard():
             
             # Show calculation columns clearly
             st.subheader("🎯 Output Columns")
-            col1, col2, col3, col4, col5 = st.columns(5)
+            col1, col2, col3, col4, col5, col6 = st.columns(6)
             with col1:
                 st.metric("⏰ Start Time", "First Check-in")
             with col2:
@@ -1110,14 +1166,16 @@ def create_dashboard():
                 st.metric("📊 Total Hours", "Work Duration")
             with col5:
                 st.metric("💼 Overtime Hours", "Based on Rules")
+            with col6:
+                st.metric("📅 Monthly OT Summary", "Total OT + Days")
             
             # Display consolidated data
             st.subheader("📊 Consolidated Timesheet Data")
-            display_columns = ['Name', 'Date', 'Start Time', 'End Time', 'Shift Time', 'Total Hours', 'Overtime Hours']
-            st.dataframe(consolidated_data[display_columns], use_container_width=True)
+            display_columns = ['Name', 'Date', 'Start Time', 'End Time', 'Shift Time', 'Total Hours', 'Overtime Hours', 'Monthly_OT_Summary']
+            st.dataframe(consolidated_data[display_columns], width="stretch")
             
             # Show calculation summary
-            st.info("✅ **Calculation Summary**: Start Time (First Check-in) | End Time (Last Check-out) | Shift Type (Day/Night) | Total Hours (Work Duration) | Overtime Hours (Based on Business Rules)")
+            st.info("✅ **Calculation Summary**: Start Time (First Check-in) | End Time (Last Check-out) | Shift Type (Day/Night) | Total Hours (Work Duration) | Overtime Hours (Based on Business Rules) | Monthly OT Summary (Total overtime hours + number of overtime days for the month)")
             
             # Analytics Section
             st.subheader("📈 Analytics & Insights")
@@ -1137,7 +1195,7 @@ def create_dashboard():
                         title="🎯 Shift Distribution",
                         color_discrete_sequence=['#1f77b4', '#ff7f0e']
                     )
-                    st.plotly_chart(fig_pie, use_container_width=True)
+                    st.plotly_chart(fig_pie, width="stretch")
                 
                 with col2:
                     # Overtime Analysis
@@ -1164,7 +1222,7 @@ def create_dashboard():
                 employee_stats['Overtime Hours'] = employee_stats['Overtime Hours (Decimal)'].apply(processor.format_hours_to_time)
                 employee_stats = employee_stats.sort_values('Total Hours', ascending=False)
                 
-                st.dataframe(employee_stats, use_container_width=True)
+                st.dataframe(employee_stats, width="stretch")
                 
                 # Top performers chart
                 top_10 = employee_stats.head(10)
@@ -1177,7 +1235,7 @@ def create_dashboard():
                     color_continuous_scale='Blues'
                 )
                 fig_emp.update_xaxes(tickangle=45)
-                st.plotly_chart(fig_emp, use_container_width=True)
+                st.plotly_chart(fig_emp, width="stretch")
             
             with analytics_tab3:
                 # Date Analysis
@@ -1199,7 +1257,7 @@ def create_dashboard():
                     title="📅 Daily Total Hours Trend",
                     markers=True
                 )
-                st.plotly_chart(fig_daily, use_container_width=True)
+                st.plotly_chart(fig_daily, width="stretch")
             
             with analytics_tab4:
                 # Overtime Analysis
@@ -1214,7 +1272,7 @@ def create_dashboard():
                         nbins=20,
                         color_discrete_sequence=['#ff7f0e']
                     )
-                    st.plotly_chart(fig_ot, use_container_width=True)
+                    st.plotly_chart(fig_ot, width="stretch")
                     
                     # Overtime by shift type
                     ot_by_shift = overtime_data.groupby('Shift Time')['Overtime Hours (Decimal)'].agg(['count', 'sum', 'mean']).reset_index()
@@ -1224,7 +1282,7 @@ def create_dashboard():
                     ot_by_shift['Average OT'] = ot_by_shift['Average OT (Decimal)'].apply(processor.format_hours_to_time)
                     # Display with formatted columns
                     display_ot_by_shift = ot_by_shift[['Shift Type', 'Count', 'Total OT', 'Average OT']]
-                    st.dataframe(display_ot_by_shift, use_container_width=True)
+                    st.dataframe(display_ot_by_shift, width="stretch")
                 else:
                     st.info("📊 No overtime hours found in the data")
             
