@@ -1,0 +1,24 @@
+{
+    "recommendations": [
+        "ms-python.python",
+        "ms-python.vscode-pylance",
+        "ms-python.black-formatter",
+        "ms-python.isort",
+        "ms-toolsai.jupyter",
+        "pkief.material-icon-theme",
+        "oderwat.indent-rainbow",
+        "streetsidesoftware.code-spell-checker",
+        "eamodio.gitlens",
+        "donjayamanne.githistory",
+        "mhutchie.git-graph",
+        "github.vscode-pull-request-github",
+        "visualstudioexptteam.vscodeintellicode",
+        "visualstudioexptteam.intellicode-api-usage-examples",
+        "usernamehw.errorlens",
+        "wayou.vscode-todo-highlight",
+        "gruntfuggly.todo-tree",
+        "alefragnani.bookmarks",
+        "christian-kohler.path-intellisense",
+        "ms-vscode.live-server"
+    ]
+}

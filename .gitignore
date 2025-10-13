@@ -14,9 +14,8 @@ venv.bak/
 # Jupyter Notebook
 .ipynb_checkpoints
 
-# Output files
-*.xlsx
-*.csv
+# Output files (but keep samples)
+data/output/
 Created Files/
 *_Timesheet_*.csv
 *_Timesheet_*.xlsx
@@ -28,16 +27,20 @@ Company_Processed_Timesheet_*.csv
 Company_Processed_Timesheet_*.xlsx
 TimeCheck.csv
 
+# Keep sample data
+!data/samples/*.csv
+!data/samples/*.xlsx
+
 # Temporary files
 *.tmp
 *.temp
 *~
 
-# IDE files
-.vscode/
+# IDE files (but keep .vscode config)
 .idea/
 *.swp
 *.swo
+.vscode/settings.json.user
 
 # OS files
 .DS_Store

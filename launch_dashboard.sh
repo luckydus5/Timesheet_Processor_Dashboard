@@ -53,4 +53,4 @@ echo "🛑 Press Ctrl+C to stop the dashboard"
 echo "================================================"
 
 # Launch Streamlit dashboard
-python -m streamlit run timesheet_dashboard.py --server.port 8501 --server.headless false
+python -m streamlit run src/timesheet_dashboard.py --server.port 8501 --server.headless false

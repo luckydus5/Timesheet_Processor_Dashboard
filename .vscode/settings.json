@@ -1,0 +1,44 @@
+{
+    "python.defaultInterpreterPath": "${workspaceFolder}/venv/bin/python",
+    "python.linting.enabled": true,
+    "python.linting.pylintEnabled": true,
+    "python.formatting.provider": "black",
+    "python.formatting.blackArgs": ["--line-length", "100"],
+    "editor.formatOnSave": true,
+    "editor.rulers": [100],
+    "files.trimTrailingWhitespace": true,
+    "files.insertFinalNewline": true,
+    "files.exclude": {
+        "**/__pycache__": true,
+        "**/*.pyc": true,
+        "**/.pytest_cache": true,
+        "**/.venv": true,
+        "**/venv": true,
+        "**/.git": false
+    },
+    "python.analysis.extraPaths": [
+        "${workspaceFolder}/src"
+    ],
+    "python.autoComplete.extraPaths": [
+        "${workspaceFolder}/src"
+    ],
+    "[python]": {
+        "editor.defaultFormatter": "ms-python.black-formatter",
+        "editor.formatOnSave": true,
+        "editor.codeActionsOnSave": {
+            "source.organizeImports": "explicit"
+        }
+    },
+    "files.associations": {
+        "*.py": "python"
+    },
+    "workbench.colorCustomizations": {
+        "activityBar.background": "#1e3a5f",
+        "activityBar.foreground": "#ffffff"
+    },
+    "workbench.iconTheme": "material-icon-theme",
+    "editor.minimap.enabled": true,
+    "editor.suggestSelection": "first",
+    "editor.tabSize": 4,
+    "editor.detectIndentation": false
+}
