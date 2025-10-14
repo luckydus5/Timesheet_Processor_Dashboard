@@ -27,15 +27,19 @@ if ! command -v pip3 &> /dev/null; then
     exit 1
 fi
 
-# Activate virtual environment if it exists
-if [ -d ".venv" ]; then
-    echo "🔄 Activating virtual environment..."
-    source .venv/bin/activate
+# Create and activate virtual environment
+if [ ! -d "venv" ]; then
+    echo "📦 Creating virtual environment..."
+    python3 -m venv venv
 fi
 
+echo "🔄 Activating virtual environment..."
+source venv/bin/activate
+
 # Install/upgrade dependencies
-echo "📦 Installing/updating dependencies..."
-pip install -r requirements.txt --quiet
+echo "📦 Installing dependencies..."
+venv/bin/pip install --quiet --upgrade pip
+venv/bin/pip install --quiet -r requirements.txt
 
 echo "✅ Dependencies installed successfully"
 echo ""
@@ -52,5 +56,6 @@ echo ""
 echo "🛑 Press Ctrl+C to stop the dashboard"
 echo "================================================"
 
-# Launch Streamlit dashboard
-python -m streamlit run src/timesheet_dashboard.py --server.port 8501 --server.headless false
+# Launch Streamlit dashboard using the virtual environment Python
+venv/bin/python -m streamlit run timesheet_dashboard.py --server.port 8501 --server.headless true
+

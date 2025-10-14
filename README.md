@@ -35,36 +35,33 @@ This system implements your exact company timesheet business rules to automatica
 
 ## 🚀 Quick Start
 
-### Method 1: Simple Processing Script
+### Launch Dashboard (Recommended)
 
-1. **Update the input file path** in `process_timesheet.py`:
-   ```python
-   INPUT_FILE = "your_timesheet_file.xlsx"  # Change this line
-   ```
-
-2. **Run the script**:
-   ```bash
-   python process_timesheet.py
-   ```
-
-3. **Get your processed files**:
-   - CSV and Excel files will be created automatically
-   - Business rules applied to all records
-
-### Method 2: Custom Python Script
-
-```python
-from timesheet_business_rules import process_timesheet_file
-
-# Process any Excel or CSV file
-data, csv_file, excel_file = process_timesheet_file('your_file.xlsx')
-
-# With custom output name
-data, csv_file, excel_file = process_timesheet_file(
-    'timesheet.csv', 
-    'Payroll_October_2025'
-)
+```bash
+./launch_dashboard.sh
 ```
+
+The dashboard will open at **http://localhost:8501** with two main features:
+
+#### 1️⃣ Timesheet Processing
+- Upload timesheet files with check-in/out records
+- Automatic duplicate consolidation
+- Business rules applied
+- Monthly overtime summaries
+
+#### 2️⃣ Attendance to OT Management Converter
+- Upload attendance files (Name, Date, Check In, Check Out)
+- **Auto-generates 2 sheets:**
+  - **Overal Sheet**: Detailed records with columns:
+    - `SN`, `EMPLOYEE NAME`, `JOB TITLE`, `Date`, `Start time`, `End time`
+    - `No. Hours`, `Hrs at 1.5 rate`, `Type of Work`, `Direct Supervisor`, `Department`
+  - **Consolidated Sheet**: Monthly summary with columns:
+    - `SN`, `Name`, `Oct-25`, `Nov-25`, `Dec-25`, `Total`
+- Downloads Excel file with both sheets
+
+**Example Files:**
+- Input: `data/samples/OPERATORS_09-13_sample.csv`
+- Output: OT Management Excel with Overal + Consolidated sheets
 
 ## 📊 Required Input Format
 

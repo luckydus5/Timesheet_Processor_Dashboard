@@ -1,27 +1,198 @@
 {
-    "python.defaultInterpreterPath": "${workspaceFolder}/venv/bin/python",
-    "python.linting.enabled": true,
-    "python.linting.pylintEnabled": true,
-    "python.formatting.provider": "black",
-    "python.formatting.blackArgs": ["--line-length", "100"],
-    "editor.formatOnSave": true,
-    "editor.rulers": [100],
-    "files.trimTrailingWhitespace": true,
-    "files.insertFinalNewline": true,
+    // ========================================
+    // 🎨 VISUAL APPEARANCE
+    // ========================================
+    
+    // File Icons - Material Icon Theme with Enhanced Colors
+    "workbench.iconTheme": "material-icon-theme",
+    "material-icon-theme.folders.theme": "specific",
+    "material-icon-theme.folders.color": "#90caf9",
+    "material-icon-theme.hidesExplorerArrows": false,
+    "material-icon-theme.opacity": 1,
+    "material-icon-theme.saturation": 1,
+    "material-icon-theme.activeIconPack": "react",
+    
+    // Custom Folder Associations with Colors
+    "material-icon-theme.folders.associations": {
+        "data": "database",
+        "samples": "examples",
+        "output": "export",
+        "docs": "docs",
+        "tests": "test",
+        ".vscode": "vscode"
+    },
+    
+    // Custom File Associations with Colors
+    "material-icon-theme.files.associations": {
+        "timesheet_dashboard.py": "python",
+        "launch_dashboard.sh": "shell",
+        "requirements.txt": "dependencies",
+        "PROJECT_CLEAN.md": "document",
+        "VISUAL_SETUP.md": "document",
+        "QUICK_REFERENCE.md": "document"
+    },
+    
+    // Color Theme
+    "workbench.colorTheme": "One Dark Pro Darker",
+    
+    // Custom Workbench Colors for Better Visual Appeal
+    "workbench.colorCustomizations": {
+        "[One Dark Pro Darker]": {
+            // Sidebar Colors
+            "sideBar.background": "#21252b",
+            "sideBar.foreground": "#abb2bf",
+            "sideBar.border": "#181a1f",
+            "sideBarTitle.foreground": "#61afef",
+            
+            // Activity Bar (Left icons)
+            "activityBar.background": "#1e2127",
+            "activityBar.foreground": "#61afef",
+            "activityBar.activeBorder": "#61afef",
+            "activityBar.activeBackground": "#2c313c",
+            
+            // Editor Colors
+            "editor.background": "#282c34",
+            "editor.foreground": "#abb2bf",
+            "editor.lineHighlightBackground": "#2c313c",
+            "editor.selectionBackground": "#3e4451",
+            
+            // Tab Colors
+            "tab.activeBackground": "#282c34",
+            "tab.inactiveBackground": "#21252b",
+            "tab.activeForeground": "#61afef",
+            "tab.border": "#181a1f",
+            
+            // Terminal Colors
+            "terminal.background": "#282c34",
+            "terminal.foreground": "#abb2bf",
+            "terminal.ansiBlue": "#61afef",
+            "terminal.ansiGreen": "#98c379",
+            "terminal.ansiYellow": "#e5c07b",
+            "terminal.ansiRed": "#e06c75",
+            "terminal.ansiMagenta": "#c678dd",
+            "terminal.ansiCyan": "#56b6c2",
+            
+            // Status Bar
+            "statusBar.background": "#1e2127",
+            "statusBar.foreground": "#abb2bf",
+            "statusBar.debuggingBackground": "#c678dd",
+            
+            // Breadcrumbs
+            "breadcrumb.background": "#282c34",
+            "breadcrumb.foreground": "#abb2bf",
+            "breadcrumb.focusForeground": "#61afef",
+            
+            // Git Colors
+            "gitDecoration.modifiedResourceForeground": "#e5c07b",
+            "gitDecoration.untrackedResourceForeground": "#98c379",
+            "gitDecoration.ignoredResourceForeground": "#5c6370",
+            "gitDecoration.deletedResourceForeground": "#e06c75",
+            
+            // List/Tree Colors
+            "list.activeSelectionBackground": "#2c313c",
+            "list.activeSelectionForeground": "#61afef",
+            "list.hoverBackground": "#2c313c80",
+            "list.inactiveSelectionBackground": "#2c313c",
+            
+            // File Explorer Specific
+            "tree.indentGuidesStroke": "#3e4451"
+        }
+    },
+    
+    // ========================================
+    // 📁 FILE EXPLORER
+    // ========================================
+    
+    // Explorer Appearance
+    "explorer.sortOrder": "type",
+    "explorer.fileNesting.enabled": true,
+    "explorer.fileNesting.expand": false,
+    "explorer.fileNesting.patterns": {
+        "*.py": "${capture}.pyc, ${capture}.pyo",
+        "requirements.txt": "requirements*.txt",
+        "README.md": "*.md",
+        ".gitignore": ".git*"
+    },
+    "explorer.compactFolders": false,
+    "explorer.decorations.badges": true,
+    "explorer.decorations.colors": true,
+    
+    // ========================================
+    // 🎯 EDITOR APPEARANCE
+    // ========================================
+    
+    // Editor Font & Layout
+    "editor.fontFamily": "'Fira Code', 'Cascadia Code', 'Consolas', 'Courier New', monospace",
+    "editor.fontLigatures": true,
+    "editor.fontSize": 14,
+    "editor.lineHeight": 22,
+    "editor.letterSpacing": 0.5,
+    
+    // Editor Colors & Styling
+    "editor.renderWhitespace": "boundary",
+    "editor.renderLineHighlight": "all",
+    "editor.cursorBlinking": "smooth",
+    "editor.cursorSmoothCaretAnimation": "on",
+    "editor.smoothScrolling": true,
+    "editor.bracketPairColorization.enabled": true,
+    "editor.guides.bracketPairs": true,
+    "editor.guides.indentation": true,
+    
+    // Minimap
+    "editor.minimap.enabled": true,
+    "editor.minimap.renderCharacters": false,
+    "editor.minimap.maxColumn": 80,
+    
+    // ========================================
+    // 🎨 INDENT & FORMATTING
+    // ========================================
+    
+    "indentRainbow.colors": [
+        "rgba(255,255,64,0.07)",
+        "rgba(127,255,127,0.07)",
+        "rgba(255,127,255,0.07)",
+        "rgba(79,236,236,0.07)"
+    ],
+    "indentRainbow.indicatorStyle": "light",
+    
+    // ========================================
+    // 📂 BREADCRUMBS
+    // ========================================
+    
+    "breadcrumbs.enabled": true,
+    "breadcrumbs.filePath": "on",
+    "breadcrumbs.symbolPath": "on",
+    
+    // ========================================
+    // 🔍 SEARCH
+    // ========================================
+    
+    "search.exclude": {
+        "**/node_modules": true,
+        "**/venv": true,
+        "**/__pycache__": true,
+        "**/.git": true,
+        "**/*.pyc": true
+    },
+    
+    // ========================================
+    // 📝 FILES
+    // ========================================
+    
     "files.exclude": {
         "**/__pycache__": true,
         "**/*.pyc": true,
-        "**/.pytest_cache": true,
-        "**/.venv": true,
-        "**/venv": true,
-        "**/.git": false
+        "**/.DS_Store": true
     },
-    "python.analysis.extraPaths": [
-        "${workspaceFolder}/src"
-    ],
-    "python.autoComplete.extraPaths": [
-        "${workspaceFolder}/src"
-    ],
+    "files.watcherExclude": {
+        "**/venv/**": true,
+        "**/__pycache__/**": true
+    },
+    
+    // ========================================
+    // 🐍 PYTHON SPECIFIC
+    // ========================================
+    
     "[python]": {
         "editor.defaultFormatter": "ms-python.black-formatter",
         "editor.formatOnSave": true,
@@ -29,16 +200,80 @@
             "source.organizeImports": "explicit"
         }
     },
-    "files.associations": {
-        "*.py": "python"
-    },
-    "workbench.colorCustomizations": {
-        "activityBar.background": "#1e3a5f",
-        "activityBar.foreground": "#ffffff"
-    },
-    "workbench.iconTheme": "material-icon-theme",
-    "editor.minimap.enabled": true,
-    "editor.suggestSelection": "first",
-    "editor.tabSize": 4,
-    "editor.detectIndentation": false
+    
+    // ========================================
+    // 💡 BETTER COMMENTS
+    // ========================================
+    
+    "better-comments.tags": [
+        {
+            "tag": "!",
+            "color": "#FF2D00",
+            "strikethrough": false,
+            "underline": false,
+            "backgroundColor": "transparent",
+            "bold": false,
+            "italic": false
+        },
+        {
+            "tag": "?",
+            "color": "#3498DB",
+            "strikethrough": false,
+            "underline": false,
+            "backgroundColor": "transparent",
+            "bold": false,
+            "italic": false
+        },
+        {
+            "tag": "//",
+            "color": "#474747",
+            "strikethrough": true,
+            "underline": false,
+            "backgroundColor": "transparent",
+            "bold": false,
+            "italic": false
+        },
+        {
+            "tag": "todo",
+            "color": "#FF8C00",
+            "strikethrough": false,
+            "underline": false,
+            "backgroundColor": "transparent",
+            "bold": false,
+            "italic": false
+        },
+        {
+            "tag": "*",
+            "color": "#98C379",
+            "strikethrough": false,
+            "underline": false,
+            "backgroundColor": "transparent",
+            "bold": false,
+            "italic": false
+        }
+    ],
+    
+    // ========================================
+    // 🌳 GIT
+    // ========================================
+    
+    "gitlens.views.branches.files.layout": "tree",
+    "gitlens.views.commits.files.layout": "tree",
+    "gitlens.hovers.currentLine.over": "line",
+    
+    // ========================================
+    // 🎯 TERMINAL
+    // ========================================
+    
+    "terminal.integrated.fontSize": 13,
+    "terminal.integrated.fontFamily": "'Fira Code', monospace",
+    "terminal.integrated.cursorBlinking": true,
+    "terminal.integrated.cursorStyle": "line",
+    
+    // ========================================
+    // 🚀 PERFORMANCE
+    // ========================================
+    
+    "files.autoSave": "afterDelay",
+    "files.autoSaveDelay": 1000
 }
