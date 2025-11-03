@@ -1637,11 +1637,12 @@ def create_dashboard():
     processor = TimesheetProcessor()
 
     # Create main navigation tabs
-    tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs(
+    tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9 = st.tabs(
         [
             "📊 Timesheet Processing",
             "🔄 Attendance Consolidation",
             "🧠 Advanced Analysis",
+            "🔍 Filter & Export by Date/Name",
             "🧪 Unit Tests",
             "🔄 Integration Tests",
             "⚡ Performance Tests",
@@ -1834,7 +1835,10 @@ def create_dashboard():
 
             # Display consolidated data
             st.subheader("📊 Consolidated Timesheet Data")
-            display_columns = [
+
+            # Select columns that actually exist in the dataframe
+            available_columns = consolidated_data.columns.tolist()
+            desired_columns = [
                 "Name",
                 "Date",
                 "Start Time",
@@ -1844,7 +1848,15 @@ def create_dashboard():
                 "Overtime Hours",
                 "Monthly_OT_Summary",
             ]
-            st.dataframe(consolidated_data[display_columns], width="stretch")
+            display_columns = [
+                col for col in desired_columns if col in available_columns
+            ]
+
+            if display_columns:
+                st.dataframe(consolidated_data[display_columns], width="stretch")
+            else:
+                # Fallback: show all columns if none of the desired ones exist
+                st.dataframe(consolidated_data, width="stretch")
 
             # Show calculation summary
             st.info(
@@ -1864,160 +1876,205 @@ def create_dashboard():
                 col1, col2 = st.columns(2)
 
                 with col1:
-                    shift_counts = consolidated_data["Shift Time"].value_counts()
-                    fig_pie = px.pie(
-                        values=shift_counts.values,
-                        names=shift_counts.index,
-                        title="🎯 Shift Distribution",
-                        color_discrete_sequence=["#1f77b4", "#ff7f0e"],
-                    )
-                    st.plotly_chart(fig_pie, width="stretch")
+                    if "Shift Time" in consolidated_data.columns:
+                        shift_counts = consolidated_data["Shift Time"].value_counts()
+                        fig_pie = px.pie(
+                            values=shift_counts.values,
+                            names=shift_counts.index,
+                            title="🎯 Shift Distribution",
+                            color_discrete_sequence=["#1f77b4", "#ff7f0e"],
+                        )
+                        st.plotly_chart(fig_pie, width="stretch")
+                    else:
+                        st.info(
+                            "💡 Shift Time information not available in this dataset"
+                        )
 
                 with col2:
                     # Overtime Analysis
-                    overtime_shifts = consolidated_data[
-                        consolidated_data["Overtime Hours (Decimal)"] > 0
-                    ]
-                    total_overtime_decimal = consolidated_data[
-                        "Overtime Hours (Decimal)"
-                    ].sum()
-                    total_overtime_formatted = processor.format_hours_to_time(
-                        total_overtime_decimal
-                    )
-                    avg_overtime_per_shift = total_overtime_decimal / len(
-                        consolidated_data
-                    )
-                    avg_overtime_formatted = processor.format_hours_to_time(
-                        avg_overtime_per_shift
-                    )
+                    if "Overtime Hours (Decimal)" in consolidated_data.columns:
+                        overtime_shifts = consolidated_data[
+                            consolidated_data["Overtime Hours (Decimal)"] > 0
+                        ]
+                        total_overtime_decimal = consolidated_data[
+                            "Overtime Hours (Decimal)"
+                        ].sum()
+                        total_overtime_formatted = processor.format_hours_to_time(
+                            total_overtime_decimal
+                        )
+                        avg_overtime_per_shift = total_overtime_decimal / len(
+                            consolidated_data
+                        )
+                        avg_overtime_formatted = processor.format_hours_to_time(
+                            avg_overtime_per_shift
+                        )
 
-                    st.metric("💼 Shifts with Overtime", f"{len(overtime_shifts):,}")
-                    st.metric("⏰ Total Overtime Hours", total_overtime_formatted)
-                    st.metric("📊 Average OT per Shift", avg_overtime_formatted)
+                        st.metric(
+                            "💼 Shifts with Overtime", f"{len(overtime_shifts):,}"
+                        )
+                        st.metric("⏰ Total Overtime Hours", total_overtime_formatted)
+                        st.metric("📊 Average OT per Shift", avg_overtime_formatted)
+                    else:
+                        st.info("💡 Overtime information not available in this dataset")
 
             with analytics_tab2:
                 # Employee Analysis
-                employee_stats = (
-                    consolidated_data.groupby("Name")
-                    .agg(
-                        {
-                            "Total Hours": "sum",
-                            "Overtime Hours (Decimal)": "sum",
-                            "Date": "count",
-                        }
+                if (
+                    "Name" in consolidated_data.columns
+                    and "Total Hours" in consolidated_data.columns
+                ):
+                    agg_dict = {"Total Hours": "sum", "Date": "count"}
+                    col_names = ["Employee", "Total Hours", "Days Worked"]
+
+                    if "Overtime Hours (Decimal)" in consolidated_data.columns:
+                        agg_dict["Overtime Hours (Decimal)"] = "sum"
+                        col_names.insert(2, "Overtime Hours (Decimal)")
+
+                    employee_stats = (
+                        consolidated_data.groupby("Name").agg(agg_dict).reset_index()
                     )
-                    .reset_index()
-                )
-                employee_stats.columns = [
-                    "Employee",
-                    "Total Hours",
-                    "Overtime Hours (Decimal)",
-                    "Days Worked",
-                ]
+                    employee_stats.columns = col_names
 
-                # Format overtime hours for display
-                employee_stats["Overtime Hours"] = employee_stats[
-                    "Overtime Hours (Decimal)"
-                ].apply(processor.format_hours_to_time)
-                employee_stats = employee_stats.sort_values(
-                    "Total Hours", ascending=False
-                )
+                    # Format overtime hours for display if available
+                    if "Overtime Hours (Decimal)" in employee_stats.columns:
+                        employee_stats["Overtime Hours"] = employee_stats[
+                            "Overtime Hours (Decimal)"
+                        ].apply(processor.format_hours_to_time)
 
-                st.dataframe(employee_stats, width="stretch")
+                    employee_stats = employee_stats.sort_values(
+                        "Total Hours", ascending=False
+                    )
 
-                # Top performers chart
-                top_10 = employee_stats.head(10)
-                fig_emp = px.bar(
-                    top_10,
-                    x="Employee",
-                    y="Total Hours",
-                    title="🏆 Top 10 Employees by Total Hours",
-                    color="Total Hours",
-                    color_continuous_scale="Blues",
-                )
-                fig_emp.update_xaxes(tickangle=45)
-                st.plotly_chart(fig_emp, width="stretch")
+                    st.dataframe(employee_stats, width="stretch")
+
+                    # Top performers chart
+                    top_10 = employee_stats.head(10)
+                    fig_emp = px.bar(
+                        top_10,
+                        x="Employee",
+                        y="Total Hours",
+                        title="🏆 Top 10 Employees by Total Hours",
+                        color="Total Hours",
+                        color_continuous_scale="Blues",
+                    )
+                    fig_emp.update_xaxes(tickangle=45)
+                    st.plotly_chart(fig_emp, width="stretch")
+                else:
+                    st.warning("⚠️ Required columns not available for employee analysis")
 
             with analytics_tab3:
                 # Date Analysis
-                consolidated_data["Date_parsed"] = pd.to_datetime(
-                    consolidated_data["Date"], format="%d-%b-%Y"
-                )
-                daily_stats = (
-                    consolidated_data.groupby("Date_parsed")
-                    .agg(
-                        {
-                            "Total Hours": "sum",
-                            "Overtime Hours (Decimal)": "sum",
-                            "Name": "count",
-                        }
+                if (
+                    "Date" in consolidated_data.columns
+                    and "Total Hours" in consolidated_data.columns
+                    and "Name" in consolidated_data.columns
+                ):
+                    consolidated_data["Date_parsed"] = pd.to_datetime(
+                        consolidated_data["Date"], format="%d-%b-%Y"
                     )
-                    .reset_index()
-                )
-                daily_stats.columns = [
-                    "Date",
-                    "Total Hours",
-                    "Overtime Hours (Decimal)",
-                    "Employees",
-                ]
 
-                # Format overtime hours for display
-                daily_stats["Overtime Hours"] = daily_stats[
-                    "Overtime Hours (Decimal)"
-                ].apply(processor.format_hours_to_time)
+                    # Build aggregation dictionary based on available columns
+                    agg_dict = {
+                        "Total Hours": "sum",
+                        "Name": "count",
+                    }
+                    if "Overtime Hours (Decimal)" in consolidated_data.columns:
+                        agg_dict["Overtime Hours (Decimal)"] = "sum"
 
-                fig_daily = px.line(
-                    daily_stats,
-                    x="Date",
-                    y="Total Hours",
-                    title="📅 Daily Total Hours Trend",
-                    markers=True,
-                )
-                st.plotly_chart(fig_daily, width="stretch")
+                    daily_stats = (
+                        consolidated_data.groupby("Date_parsed")
+                        .agg(agg_dict)
+                        .reset_index()
+                    )
+
+                    # Rename columns based on what we have
+                    if "Overtime Hours (Decimal)" in consolidated_data.columns:
+                        daily_stats.columns = [
+                            "Date",
+                            "Total Hours",
+                            "Employees",
+                            "Overtime Hours (Decimal)",
+                        ]
+                        # Format overtime hours for display
+                        daily_stats["Overtime Hours"] = daily_stats[
+                            "Overtime Hours (Decimal)"
+                        ].apply(processor.format_hours_to_time)
+                    else:
+                        daily_stats.columns = [
+                            "Date",
+                            "Total Hours",
+                            "Employees",
+                        ]
+
+                    fig_daily = px.line(
+                        daily_stats,
+                        x="Date",
+                        y="Total Hours",
+                        title="📅 Daily Total Hours Trend",
+                        markers=True,
+                    )
+                    st.plotly_chart(fig_daily, width="stretch")
+                else:
+                    st.info(
+                        "💡 Date analysis data not available. Please process data first."
+                    )
 
             with analytics_tab4:
                 # Overtime Analysis
-                overtime_data = consolidated_data[
-                    consolidated_data["Overtime Hours (Decimal)"] > 0
-                ]
-
-                if not overtime_data.empty:
-                    # Overtime distribution
-                    fig_ot = px.histogram(
-                        overtime_data,
-                        x="Overtime Hours",
-                        title="💼 Overtime Hours Distribution",
-                        nbins=20,
-                        color_discrete_sequence=["#ff7f0e"],
-                    )
-                    st.plotly_chart(fig_ot, width="stretch")
-
-                    # Overtime by shift type
-                    ot_by_shift = (
-                        overtime_data.groupby("Shift Time")["Overtime Hours (Decimal)"]
-                        .agg(["count", "sum", "mean"])
-                        .reset_index()
-                    )
-                    ot_by_shift.columns = [
-                        "Shift Type",
-                        "Count",
-                        "Total OT (Decimal)",
-                        "Average OT (Decimal)",
+                if "Overtime Hours (Decimal)" in consolidated_data.columns:
+                    overtime_data = consolidated_data[
+                        consolidated_data["Overtime Hours (Decimal)"] > 0
                     ]
-                    # Format the overtime columns for display
-                    ot_by_shift["Total OT"] = ot_by_shift["Total OT (Decimal)"].apply(
-                        processor.format_hours_to_time
-                    )
-                    ot_by_shift["Average OT"] = ot_by_shift[
-                        "Average OT (Decimal)"
-                    ].apply(processor.format_hours_to_time)
-                    # Display with formatted columns
-                    display_ot_by_shift = ot_by_shift[
-                        ["Shift Type", "Count", "Total OT", "Average OT"]
-                    ]
-                    st.dataframe(display_ot_by_shift, width="stretch")
+
+                    if not overtime_data.empty:
+                        # Overtime distribution
+                        if "Overtime Hours" in overtime_data.columns:
+                            fig_ot = px.histogram(
+                                overtime_data,
+                                x="Overtime Hours",
+                                title="💼 Overtime Hours Distribution",
+                                nbins=20,
+                                color_discrete_sequence=["#ff7f0e"],
+                            )
+                            st.plotly_chart(fig_ot, width="stretch")
+
+                        # Overtime by shift type
+                        if "Shift Time" in overtime_data.columns:
+                            ot_by_shift = (
+                                overtime_data.groupby("Shift Time")[
+                                    "Overtime Hours (Decimal)"
+                                ]
+                                .agg(["count", "sum", "mean"])
+                                .reset_index()
+                            )
+                            ot_by_shift.columns = [
+                                "Shift Type",
+                                "Count",
+                                "Total OT (Decimal)",
+                                "Average OT (Decimal)",
+                            ]
+                            # Format the overtime columns for display
+                            ot_by_shift["Total OT"] = ot_by_shift[
+                                "Total OT (Decimal)"
+                            ].apply(processor.format_hours_to_time)
+                            ot_by_shift["Average OT"] = ot_by_shift[
+                                "Average OT (Decimal)"
+                            ].apply(processor.format_hours_to_time)
+                            # Display with formatted columns
+                            display_ot_by_shift = ot_by_shift[
+                                ["Shift Type", "Count", "Total OT", "Average OT"]
+                            ]
+                            st.dataframe(display_ot_by_shift, width="stretch")
+                        else:
+                            st.info(
+                                "💡 Shift Time data not available for overtime breakdown"
+                            )
+                    else:
+                        st.info("📊 No overtime hours found in the data")
                 else:
-                    st.info("📊 No overtime hours found in the data")
+                    st.info(
+                        "💡 Overtime data not available. Please process data first."
+                    )
 
             # Export Section
             st.subheader("💾 Export Data")
@@ -2036,59 +2093,128 @@ def create_dashboard():
                 )
 
             with col2:
-                # Excel Export
+                # Excel Export with Overal and Consolidated sheets
                 output = io.BytesIO()
                 with pd.ExcelWriter(output, engine="openpyxl") as writer:
+                    # Sheet 1: Overal - Detailed records (all consolidated data with all columns)
                     consolidated_data[display_columns].to_excel(
-                        writer, sheet_name="Consolidated_Data", index=False
+                        writer, sheet_name="Overal", index=False
                     )
 
-                    # Add summary sheet
-                    summary_data = {
-                        "Metric": [
-                            "Total Consolidated Records",
-                            "Unique Employees",
-                            "Date Range Start",
-                            "Date Range End",
-                            "Day Shift Records",
-                            "Night Shift Records",
-                            "Records with Overtime",
-                            "Total Overtime Hours",
-                        ],
-                        "Value": [
-                            len(consolidated_data),
-                            consolidated_data["Name"].nunique(),
-                            consolidated_data["Date"].min(),
-                            consolidated_data["Date"].max(),
-                            len(
-                                consolidated_data[
-                                    consolidated_data["Shift Time"] == "Day Shift"
-                                ]
-                            ),
-                            len(
-                                consolidated_data[
-                                    consolidated_data["Shift Time"] == "Night Shift"
-                                ]
-                            ),
-                            len(
-                                consolidated_data[
-                                    consolidated_data["Overtime Hours (Decimal)"] > 0
-                                ]
-                            ),
-                            processor.format_hours_to_time(
-                                consolidated_data["Overtime Hours (Decimal)"].sum()
-                            ),
-                        ],
-                    }
-                    pd.DataFrame(summary_data).to_excel(
-                        writer, sheet_name="Summary", index=False
-                    )
+                    # Sheet 2: Consolidated - Monthly summary by employee
+                    if (
+                        "Name" in consolidated_data.columns
+                        and "Date" in consolidated_data.columns
+                    ):
+                        # Parse dates to get month
+                        temp_df = consolidated_data.copy()
+                        temp_df["Date_Parsed"] = pd.to_datetime(
+                            temp_df["Date"], format="%d-%b-%Y", errors="coerce"
+                        )
+                        temp_df["Month"] = temp_df["Date_Parsed"].dt.to_period("M")
+
+                        # Build aggregation based on available columns
+                        agg_dict = {
+                            "Date": "count",  # Count of working days
+                        }
+                        summary_columns = ["EMPLOYEE NAME", "Month", "Days Worked"]
+
+                        if "Total Hours" in temp_df.columns:
+                            agg_dict["Total Hours"] = "sum"
+                            summary_columns.append("Total Hours")
+
+                        if "Overtime Hours (Decimal)" in temp_df.columns:
+                            agg_dict["Overtime Hours (Decimal)"] = "sum"
+                            summary_columns.append("Total OT Hours")
+
+                        # Create consolidated summary
+                        consolidated_summary = (
+                            temp_df.groupby(["Name", "Month"])
+                            .agg(agg_dict)
+                            .reset_index()
+                        )
+
+                        # Rename columns
+                        col_mapping = {
+                            "Name": "EMPLOYEE NAME",
+                            "Month": "Month",
+                            "Date": "Days Worked",
+                        }
+                        if "Total Hours" in agg_dict:
+                            col_mapping["Total Hours"] = "Total Hours"
+                        if "Overtime Hours (Decimal)" in agg_dict:
+                            col_mapping["Overtime Hours (Decimal)"] = "Total OT Hours"
+
+                        consolidated_summary = consolidated_summary.rename(
+                            columns=col_mapping
+                        )
+                        consolidated_summary["Month"] = consolidated_summary[
+                            "Month"
+                        ].astype(str)
+
+                        # Add SN column
+                        consolidated_summary.insert(
+                            0, "SN", range(1, len(consolidated_summary) + 1)
+                        )
+
+                        consolidated_summary.to_excel(
+                            writer, sheet_name="Consolidated", index=False
+                        )
+                    else:
+                        # If we can't create monthly summary, just duplicate Overal sheet
+                        consolidated_data[display_columns].to_excel(
+                            writer, sheet_name="Consolidated", index=False
+                        )
+
+                    # Add Type of Work dropdown to Overal sheet if column exists
+                    if "Type of Work" in display_columns:
+                        from openpyxl.utils import get_column_letter
+                        from openpyxl.worksheet.datavalidation import DataValidation
+
+                        overal_sheet = writer.sheets["Overal"]
+
+                        # Find Type of Work column
+                        type_col_idx = None
+                        for idx, col in enumerate(display_columns, start=1):
+                            if col == "Type of Work":
+                                type_col_idx = idx
+                                break
+
+                        if type_col_idx:
+                            col_letter = get_column_letter(type_col_idx)
+                            work_types = [
+                                "Wagon",
+                                "Superloader",
+                                "Bulldozer/Superloader",
+                                "Pump",
+                                "Miller",
+                            ]
+                            formula_string = '"{}"'.format(",".join(work_types))
+
+                            dv = DataValidation(
+                                type="list",
+                                formula1=formula_string,
+                                allow_blank=True,
+                                showDropDown=False,
+                            )
+                            dv.error = "Please select from the dropdown: Wagon, Superloader, Bulldozer/Superloader, Pump, or Miller"
+                            dv.errorTitle = "Invalid Entry"
+                            dv.prompt = "Choose work type"
+                            dv.promptTitle = "Type of Work Selection"
+
+                            start_row = 2
+                            end_row = len(consolidated_data) + 1
+                            range_string = (
+                                f"{col_letter}{start_row}:{col_letter}{end_row}"
+                            )
+                            dv.add(range_string)
+                            overal_sheet.add_data_validation(dv)
 
                 excel_data = output.getvalue()
                 st.download_button(
-                    label="📊 Download Excel",
+                    label="📊 Download Excel (Overal + Consolidated)",
                     data=excel_data,
-                    file_name=f"consolidated_timesheet_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
+                    file_name=f"OT_Management_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                     type="secondary",
                 )
@@ -2187,6 +2313,9 @@ def create_dashboard():
                         if overal_df.empty:
                             st.warning("⚠️ No valid records processed")
                         else:
+                            # Store in session state for Filter & Export tab
+                            st.session_state["overal_data"] = overal_df
+                            st.session_state["consolidated_data"] = consolidated_df
                             rtab1, rtab2 = st.tabs(
                                 ["📝 Overal Sheet", "📊 Consolidated Sheet"]
                             )
@@ -2298,8 +2427,47 @@ def create_dashboard():
             "📊 Upload data in Tab 1 or Tab 2 first, then return here for AI-powered insights"
         )
 
-        if "consolidated_data" in st.session_state:
-            df_analysis = st.session_state["consolidated_data"]
+        if (
+            "overal_data" in st.session_state
+            and st.session_state["overal_data"] is not None
+        ):
+            df_analysis = st.session_state["overal_data"].copy()
+
+            # Rename columns for consistency with analysis
+            df_analysis.rename(
+                columns={
+                    "EMPLOYEE NAME": "Name",
+                    "Hrs at 1.5 rate": "Overtime Hours (Decimal)",
+                    "Start time": "Start Time",
+                    "End time": "End Time",
+                },
+                inplace=True,
+            )
+
+            # Add Total Hours column by converting HH:MM:SS to decimal
+            if "No. Hours" in df_analysis.columns:
+                df_analysis["Total Hours"] = df_analysis["No. Hours"].apply(
+                    hms_to_decimal_hours
+                )
+
+            # Add Shift Time column based on Start Time
+            def determine_shift_from_time(start_time_str):
+                """Determine shift type from start time string"""
+                if pd.isna(start_time_str) or start_time_str == "N/A":
+                    return "Unknown"
+                try:
+                    start_time = pd.to_datetime(start_time_str, format="%H:%M").time()
+                    start_hour = start_time.hour + start_time.minute / 60
+                    return "Day Shift" if start_hour < 18.0 else "Night Shift"
+                except:
+                    return "Unknown"
+
+            if "Start Time" in df_analysis.columns:
+                df_analysis["Shift Time"] = df_analysis["Start Time"].apply(
+                    determine_shift_from_time
+                )
+            else:
+                df_analysis["Shift Time"] = "Unknown"
 
             st.subheader("🎯 Key Performance Indicators")
             col1, col2, col3, col4 = st.columns(4)
@@ -2840,23 +3008,418 @@ def create_dashboard():
             )
 
     # Tab 4: Unit Tests
+    # Tab 4: Filter & Export by Date/Name
     with tab4:
+        st.header("🔍 Filter & Export by Date and Name")
+        st.info(
+            "📌 Select specific dates and employee names to automatically generate filtered overtime records for export"
+        )
+
+        # Check if we have data
+        if (
+            "overal_data" not in st.session_state
+            or st.session_state["overal_data"] is None
+        ):
+            st.warning(
+                "⚠️ Please process data first in the 'Attendance Consolidation' tab to enable filtering"
+            )
+        else:
+            overal_df = st.session_state["overal_data"]
+
+            # Create filter section
+            st.subheader("📋 Select Filters")
+
+            col1, col2 = st.columns(2)
+
+            with col1:
+                st.markdown("### 📅 Date Selection")
+                # Get unique dates from the data
+                if "Date" in overal_df.columns:
+                    # Convert dates to datetime for proper sorting
+                    try:
+                        overal_df["Date_parsed"] = pd.to_datetime(
+                            overal_df["Date"], format="%d-%b-%Y", errors="coerce"
+                        )
+                        unique_dates = (
+                            overal_df["Date_parsed"]
+                            .dropna()
+                            .dt.strftime("%d-%b-%Y")
+                            .unique()
+                        )
+                        unique_dates_sorted = sorted(
+                            unique_dates,
+                            key=lambda x: pd.to_datetime(x, format="%d-%b-%Y"),
+                        )
+                    except:
+                        unique_dates_sorted = sorted(
+                            overal_df["Date"].dropna().unique()
+                        )
+
+                    if len(unique_dates_sorted) > 0:
+                        # Multi-select for dates
+                        selected_dates = st.multiselect(
+                            "Select Date(s)",
+                            options=unique_dates_sorted,
+                            default=None,
+                            help="Select one or more dates to filter records. Leave empty to include all dates.",
+                        )
+
+                        # Quick date selection buttons
+                        st.markdown("**Quick Selection:**")
+                        quick_col1, quick_col2, quick_col3 = st.columns(3)
+                        with quick_col1:
+                            if st.button(
+                                "📅 Today", help="Select today's date if available"
+                            ):
+                                today_str = datetime.now().strftime("%d-%b-%Y")
+                                if today_str in unique_dates_sorted:
+                                    selected_dates = [today_str]
+                                    st.rerun()
+
+                        with quick_col2:
+                            if st.button(
+                                "📆 All Dates", help="Select all available dates"
+                            ):
+                                selected_dates = list(unique_dates_sorted)
+                                st.rerun()
+
+                        with quick_col3:
+                            if st.button("🔄 Clear", help="Clear date selection"):
+                                selected_dates = []
+                                st.rerun()
+                    else:
+                        st.warning("No dates found in the data")
+                        selected_dates = []
+                else:
+                    st.error("Date column not found in data")
+                    selected_dates = []
+
+            with col2:
+                st.markdown("### 👥 Employee Selection")
+                # Get unique employee names
+                if "EMPLOYEE NAME" in overal_df.columns:
+                    unique_names = sorted(overal_df["EMPLOYEE NAME"].dropna().unique())
+
+                    if len(unique_names) > 0:
+                        # Multi-select for names
+                        selected_names = st.multiselect(
+                            "Select Employee(s)",
+                            options=unique_names,
+                            default=None,
+                            help="Select one or more employees to filter records. Leave empty to include all employees.",
+                        )
+
+                        # Quick name selection buttons
+                        st.markdown("**Quick Selection:**")
+                        name_col1, name_col2 = st.columns(2)
+                        with name_col1:
+                            if st.button(
+                                "👥 All Employees", help="Select all employees"
+                            ):
+                                selected_names = list(unique_names)
+                                st.rerun()
+
+                        with name_col2:
+                            if st.button(
+                                "🔄 Clear Names", help="Clear employee selection"
+                            ):
+                                selected_names = []
+                                st.rerun()
+                    else:
+                        st.warning("No employee names found in the data")
+                        selected_names = []
+                else:
+                    st.error("Employee Name column not found in data")
+                    selected_names = []
+
+            # Apply filters
+            st.markdown("---")
+            st.subheader("📊 Filtered Results")
+
+            filtered_df = overal_df.copy()
+
+            # Apply date filter if dates are selected
+            if selected_dates and len(selected_dates) > 0:
+                filtered_df = filtered_df[filtered_df["Date"].isin(selected_dates)]
+
+            # Apply name filter if names are selected
+            if selected_names and len(selected_names) > 0:
+                filtered_df = filtered_df[
+                    filtered_df["EMPLOYEE NAME"].isin(selected_names)
+                ]
+
+            # Remove the temporary Date_parsed column if it exists
+            if "Date_parsed" in filtered_df.columns:
+                filtered_df = filtered_df.drop(columns=["Date_parsed"])
+
+            # Display results
+            if len(filtered_df) > 0:
+                # Summary metrics
+                metric_col1, metric_col2, metric_col3, metric_col4 = st.columns(4)
+                with metric_col1:
+                    st.metric("📋 Total Records", len(filtered_df))
+                with metric_col2:
+                    st.metric("👥 Employees", filtered_df["EMPLOYEE NAME"].nunique())
+                with metric_col3:
+                    st.metric("📅 Dates", filtered_df["Date"].nunique())
+                with metric_col4:
+                    total_ot_hours = filtered_df["Hrs at 1.5 rate"].sum()
+                    st.metric("⏰ Total OT Hours", f"{total_ot_hours:.2f}")
+
+                st.markdown("---")
+
+                # Display filtered data
+                st.dataframe(
+                    filtered_df, use_container_width=True, hide_index=True, height=400
+                )
+
+                # Export section
+                st.markdown("---")
+                st.subheader("📥 Export Filtered Data")
+
+                export_col1, export_col2 = st.columns(2)
+
+                with export_col1:
+                    # Generate filename based on filters
+                    filename_parts = ["filtered_overtime"]
+                    if selected_dates and len(selected_dates) == 1:
+                        date_part = selected_dates[0].replace("-", "")
+                        filename_parts.append(date_part)
+                    elif selected_dates and len(selected_dates) > 1:
+                        filename_parts.append("multiple_dates")
+
+                    if selected_names and len(selected_names) == 1:
+                        name_part = selected_names[0].replace(" ", "_")[:20]
+                        filename_parts.append(name_part)
+                    elif selected_names and len(selected_names) > 1:
+                        filename_parts.append(f"{len(selected_names)}_employees")
+
+                    filename_parts.append(datetime.now().strftime("%Y%m%d_%H%M%S"))
+                    export_filename = "_".join(filename_parts)
+
+                    st.info(f"📄 **Filename:** `{export_filename}.xlsx`")
+
+                with export_col2:
+                    st.markdown("**Export Options:**")
+                    include_summary = st.checkbox(
+                        "Include Summary Sheet",
+                        value=True,
+                        help="Add a summary sheet with totals by employee",
+                    )
+
+                # Create Excel export
+                if st.button(
+                    "📊 Generate Excel Export", type="primary", use_container_width=True
+                ):
+                    try:
+                        output = io.BytesIO()
+
+                        with pd.ExcelWriter(output, engine="openpyxl") as writer:
+                            # Prepare data for export - remove Date_parsed if exists
+                            export_df = filtered_df.copy()
+                            if "Date_parsed" in export_df.columns:
+                                export_df = export_df.drop(columns=["Date_parsed"])
+
+                            # Sheet 1: Overal - Detailed filtered records
+                            export_df.to_excel(writer, sheet_name="Overal", index=False)
+
+                            # Sheet 2: Consolidated - Monthly summary by employee
+                            if (
+                                "EMPLOYEE NAME" in export_df.columns
+                                and "Date" in export_df.columns
+                            ):
+                                # Parse dates to get month
+                                temp_df = export_df.copy()
+                                temp_df["Date_Parsed"] = pd.to_datetime(
+                                    temp_df["Date"], format="%d-%b-%Y", errors="coerce"
+                                )
+                                temp_df["Month"] = temp_df["Date_Parsed"].dt.to_period(
+                                    "M"
+                                )
+
+                                # Build aggregation dictionary
+                                agg_dict = {
+                                    "Date": "count",  # Days worked
+                                }
+
+                                if "No. Hours" in temp_df.columns:
+                                    agg_dict["No. Hours"] = "sum"
+
+                                if "Hrs at 1.5 rate" in temp_df.columns:
+                                    agg_dict["Hrs at 1.5 rate"] = "sum"
+
+                                # Create consolidated summary
+                                consolidated_summary = (
+                                    temp_df.groupby(["EMPLOYEE NAME", "Month"])
+                                    .agg(agg_dict)
+                                    .reset_index()
+                                )
+
+                                # Rename columns appropriately
+                                col_rename = {
+                                    "EMPLOYEE NAME": "EMPLOYEE NAME",
+                                    "Month": "Month",
+                                    "Date": "Days Worked",
+                                }
+
+                                if "No. Hours" in agg_dict:
+                                    col_rename["No. Hours"] = "Total Hours"
+
+                                if "Hrs at 1.5 rate" in agg_dict:
+                                    col_rename["Hrs at 1.5 rate"] = "Total OT Hours"
+
+                                consolidated_summary = consolidated_summary.rename(
+                                    columns=col_rename
+                                )
+                                consolidated_summary["Month"] = consolidated_summary[
+                                    "Month"
+                                ].astype(str)
+
+                                # Add SN column
+                                consolidated_summary.insert(
+                                    0, "SN", range(1, len(consolidated_summary) + 1)
+                                )
+
+                                consolidated_summary.to_excel(
+                                    writer, sheet_name="Consolidated", index=False
+                                )
+                            else:
+                                # Fallback: duplicate Overal sheet
+                                export_df.to_excel(
+                                    writer, sheet_name="Consolidated", index=False
+                                )
+
+                            # Add Type of Work dropdown to Overal sheet
+                            from openpyxl.utils import get_column_letter
+                            from openpyxl.worksheet.datavalidation import DataValidation
+
+                            overal_sheet = writer.sheets["Overal"]
+
+                            # Find Type of Work column
+                            try:
+                                type_col_idx = (
+                                    list(export_df.columns).index("Type of Work") + 1
+                                )
+                                col_letter = get_column_letter(type_col_idx)
+
+                                work_types = [
+                                    "Wagon",
+                                    "Superloader",
+                                    "Bulldozer/Superloader",
+                                    "Pump",
+                                    "Miller",
+                                ]
+                                formula_string = '"{}"'.format(",".join(work_types))
+
+                                dv = DataValidation(
+                                    type="list",
+                                    formula1=formula_string,
+                                    showDropDown=False,
+                                    allow_blank=True,
+                                )
+                                dv.error = "Please select from the dropdown: Wagon, Superloader, Bulldozer/Superloader, Pump, or Miller"
+                                dv.errorTitle = "Invalid Entry"
+                                dv.prompt = "Choose work type"
+                                dv.promptTitle = "Type of Work Selection"
+
+                                # Apply to all data rows
+                                start_row = 2
+                                end_row = len(export_df) + 1
+                                range_string = (
+                                    f"{col_letter}{start_row}:{col_letter}{end_row}"
+                                )
+                                dv.add(range_string)
+                                overal_sheet.add_data_validation(dv)
+                            except Exception as e:
+                                st.warning(f"Could not add Type of Work dropdown: {e}")
+
+                            # Sheet 3: Summary - Additional analytics by employee (if requested)
+                            if include_summary:
+                                summary_df = (
+                                    export_df.groupby("EMPLOYEE NAME")
+                                    .agg(
+                                        {
+                                            "SN": "count",
+                                            "Hrs at 1.5 rate": "sum",
+                                            "Date": lambda x: ", ".join(sorted(set(x))),
+                                        }
+                                    )
+                                    .reset_index()
+                                )
+
+                                summary_df.columns = [
+                                    "Employee Name",
+                                    "Number of Shifts",
+                                    "Total OT Hours",
+                                    "Dates Worked",
+                                ]
+                                summary_df.insert(
+                                    0, "SN", range(1, len(summary_df) + 1)
+                                )
+
+                                summary_df.to_excel(
+                                    writer, sheet_name="Summary", index=False
+                                )
+
+                        excel_data = output.getvalue()
+
+                        st.success("✅ Excel file generated successfully!")
+
+                        st.download_button(
+                            label="📥 Download Filtered Excel",
+                            data=excel_data,
+                            file_name=f"{export_filename}.xlsx",
+                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                            type="primary",
+                            use_container_width=True,
+                        )
+
+                    except Exception as e:
+                        st.error(f"❌ Error generating Excel: {str(e)}")
+
+                # Show filter summary
+                st.markdown("---")
+                with st.expander("📋 Filter Summary", expanded=False):
+                    st.markdown("**Active Filters:**")
+                    if selected_dates and len(selected_dates) > 0:
+                        st.success(f"📅 **Dates:** {', '.join(selected_dates)}")
+                    else:
+                        st.info("📅 **Dates:** All dates included")
+
+                    if selected_names and len(selected_names) > 0:
+                        st.success(f"👥 **Employees:** {', '.join(selected_names)}")
+                    else:
+                        st.info("👥 **Employees:** All employees included")
+
+                    st.markdown(
+                        f"**Result:** {len(filtered_df)} records out of {len(overal_df)} total records"
+                    )
+
+            else:
+                st.warning(
+                    "⚠️ No records match the selected filters. Please adjust your selection."
+                )
+                st.info(
+                    "💡 **Tip:** Try clearing some filters or selecting different options."
+                )
+
+    with tab5:
         display_unit_tests_tab()
 
-    # Tab 5: Integration Tests
-    with tab5:
+    # Tab 6: Integration Tests
+    with tab6:
         display_integration_tests_tab()
 
-    # Tab 6: Performance Tests
-    with tab6:
+    # Tab 7: Performance Tests
+    with tab7:
         display_performance_tests_tab()
 
-    # Tab 7: Regression Tests
-    with tab7:
+    # Tab 8: Regression Tests
+    with tab8:
         display_regression_tests_tab()
 
-    # Tab 8: Configuration
-    with tab8:
+    # Tab 9: Configuration
+    with tab9:
         display_configuration_tab()
 
     # Footer
