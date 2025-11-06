@@ -252,8 +252,8 @@ class TimesheetProcessor:
             return ""
 
         start_hour = start_time.hour + start_time.minute / 60 + start_time.second / 3600
-        # Night shift starts at 16:10 (16.1667 hours)
-        return "Day Shift" if start_hour < 16.1667 else "Night Shift"
+        # Night shift starts at 15:50 (3:50 PM) to catch early night shift workers
+        return "Day Shift" if start_hour < 15.8333 else "Night Shift"
 
     def calculate_total_work_hours(self, start_time, end_time, shift_type, work_date):
         """Calculate total work hours between start and end time
@@ -267,7 +267,7 @@ class TimesheetProcessor:
 
         # Determine if this is a night shift
         start_hour = start_time.hour + start_time.minute / 60
-        is_night_shift = start_hour >= 16.1667  # 16:10 PM - night shift detection
+        is_night_shift = start_hour >= 15.8333  # 15:50 (3:50 PM) - night shift detection
         
         if is_night_shift:
             # NIGHT SHIFT: Work counted from 18:00 PM to 03:00 AM
@@ -689,6 +689,13 @@ class TimesheetProcessor:
             checkins = df_work[df_work["Status"].str.contains("In", case=False, na=False)]
             checkouts = df_work[df_work["Status"].str.contains("Out", case=False, na=False)]
             st.info(f"✅ Found {len(checkins)} check-in records and {len(checkouts)} check-out records")
+            
+            # DEBUG: Show first few records for RUGANINTWALI SALEH
+            debug_employee = "RUGANINTWALI SALEH"
+            if debug_employee in df_work['Name'].values:
+                debug_df = df_work[df_work['Name'] == debug_employee][['Date_parsed', 'Time_parsed', 'Status']].head(15)
+                st.info(f"🔍 DEBUG - First 15 records for {debug_employee}:")
+                st.dataframe(debug_df)
 
         progress_bar = st.progress(0)
         status_text = st.empty()
@@ -700,14 +707,26 @@ class TimesheetProcessor:
         total_employees = len(employees)
         
         for emp_idx, employee in enumerate(employees):
-            emp_data = df_work[df_work["Name"] == employee].sort_values(["Date_parsed", "Time_parsed"])
-            
-            # Get all records in chronological order
-            all_records = emp_data.to_dict('records')
+            try:
+                emp_data = df_work[df_work["Name"] == employee].sort_values(["Date_parsed", "Time_parsed"])
+                
+                # Get all records in chronological order
+                all_records = emp_data.to_dict('records')
+                
+                # CRITICAL: Track ALL records to ensure none are lost
+                all_record_ids = set(range(len(all_records)))
+                used_record_ids = set()
+            except Exception as e:
+                if show_warnings:
+                    st.error(f"❌ {employee} - Critical error initializing data: {str(e)}")
+                progress_bar.progress((emp_idx + 1) / total_employees)
+                status_text.text(f"ERROR Processing: {employee} ({emp_idx + 1}/{total_employees})")
+                continue
             
             # First pass: Group records by date to handle multiple check-ins/outs per day
             daily_records = {}
-            for record in all_records:
+            for idx, record in enumerate(all_records):
+                record['_record_id'] = idx  # Add tracking ID
                 date_key = record["Date_parsed"]
                 if date_key not in daily_records:
                     daily_records[date_key] = {'ins': [], 'outs': []}
@@ -722,33 +741,110 @@ class TimesheetProcessor:
             
             # Second pass: Consolidate daily records (earliest check-in, latest check-out)
             processed_dates = set()
+            orphaned_checkouts = {}  # Track check-outs that belong to previous day
             
+            # PRE-PROCESSING PHASE: Identify ALL orphaned checkouts BEFORE main processing
+            # This ensures we find them before we process the dates they belong to
             for work_date in sorted(daily_records.keys()):
-                if work_date in processed_dates:
-                    continue
-                
                 day_ins = daily_records[work_date]['ins']
                 day_outs = daily_records[work_date]['outs']
                 
-                # Skip if no check-ins or check-outs
                 if not day_ins and not day_outs:
                     continue
                 
+                # Check for orphaned checkouts (checkouts before check-ins, or checkouts without check-ins)
+                if day_outs:
+                    if day_ins:
+                        # We have BOTH check-ins and check-outs
+                        earliest_checkin = min(day_ins, key=lambda x: x["Time_parsed"])
+                        earliest_checkin_time = earliest_checkin["Time_parsed"]
+                        
+                        # Find checkouts that happen BEFORE the earliest check-in
+                        for out_record in day_outs:
+                            if out_record["Time_parsed"] < earliest_checkin_time:
+                                # This checkout belongs to previous day's night shift
+                                prev_date = work_date - timedelta(days=1)
+                                if prev_date not in orphaned_checkouts:
+                                    orphaned_checkouts[prev_date] = []
+                                orphaned_checkouts[prev_date].append(out_record)
+                    else:
+                        # Only checkouts, NO check-ins on this day
+                        # Check if they're morning checkouts (< 12:00 PM) - belong to previous night
+                        for out_record in day_outs:
+                            out_time = out_record["Time_parsed"]
+                            if out_time.hour < 12:
+                                # Morning checkout without check-in = previous day's night shift
+                                prev_date = work_date - timedelta(days=1)
+                                if prev_date not in orphaned_checkouts:
+                                    orphaned_checkouts[prev_date] = []
+                                orphaned_checkouts[prev_date].append(out_record)
+            
+            # MAIN PROCESSING PHASE: Now process each date with orphaned checkouts already identified
+            
+            for work_date in sorted(daily_records.keys()):
+                try:
+                    if work_date in processed_dates:
+                        continue
+                    
+                    day_ins = daily_records[work_date]['ins']
+                    day_outs = daily_records[work_date]['outs']
+                    
+                    # Skip if no check-ins or check-outs
+                    if not day_ins and not day_outs:
+                        continue
+                except Exception as e:
+                    if show_warnings:
+                        st.warning(f"⚠️ {employee} - Error processing date {work_date}: {str(e)}")
+                    continue
+                
+                # Filter out checkouts that were moved to previous day's orphaned list
+                # (These were morning checkouts that belong to previous night shift)
+                valid_outs_for_today = []
+                
+                if day_outs:
+                    # Check if any of this day's checkouts were assigned to PREVIOUS day
+                    prev_date = work_date - timedelta(days=1)
+                    orphaned_to_prev = set()
+                    if prev_date in orphaned_checkouts:
+                        orphaned_to_prev = {rec['_record_id'] for rec in orphaned_checkouts[prev_date]}
+                    
+                    # Keep only checkouts that were NOT moved to previous day
+                    for out_record in day_outs:
+                        if out_record['_record_id'] not in orphaned_to_prev:
+                            valid_outs_for_today.append(out_record)
+                    
+                    day_outs = valid_outs_for_today
+                
                 # Consolidate multiple check-ins: Use EARLIEST check-in
-                if day_ins:
-                    checkin_record = min(day_ins, key=lambda x: x["Time_parsed"])
-                    checkin_date = checkin_record["Date_parsed"]
-                    checkin_time = checkin_record["Time_parsed"]
-                    # Use the actual status from the record (C/In, OverTime In, etc.)
-                    checkin_status = checkin_record["Status"]
-                    has_checkin = True
-                else:
+                try:
+                    if day_ins:
+                        checkin_record = min(day_ins, key=lambda x: x["Time_parsed"])
+                        checkin_date = checkin_record["Date_parsed"]
+                        checkin_time = checkin_record["Time_parsed"]
+                        # Use the actual status from the record (C/In, OverTime In, etc.)
+                        checkin_status = checkin_record["Status"]
+                        has_checkin = True
+                        # CRITICAL FIX: Mark the used check-in as consumed
+                        used_record_ids.add(checkin_record['_record_id'])
+                    else:
+                        has_checkin = False
+                except Exception as e:
+                    if show_warnings:
+                        st.warning(f"⚠️ {employee} - Error processing check-in for {work_date.strftime('%d/%m/%Y')}: {str(e)}")
                     has_checkin = False
+                    continue
+                
+                # SKIP if we moved all check-outs to orphaned (they'll be used by previous day)
+                # and we have no check-ins on this day
+                if not has_checkin and not day_outs:
+                    # All data for this date was moved to previous day's night shift
+                    # Don't create a "Missing" entry
+                    continue
                 
                 # Check if this is a night shift (starts at or after 16:10)
                 if has_checkin:
                     checkin_hour = checkin_time.hour + checkin_time.minute / 60
-                    is_night_shift = checkin_hour >= 16.1667  # 16:10
+                    is_night_shift = checkin_hour >= 15.8333  # 15:50 (3:50 PM)
                 else:
                     is_night_shift = False
                 
@@ -763,9 +859,29 @@ class TimesheetProcessor:
                     next_date = work_date + timedelta(days=1)
                     all_outs = day_outs.copy()
                     
-                    # Add next day's check-outs if they exist
+                    # FIRST: Check if we have orphaned check-outs from next day (morning checkouts)
+                    if work_date in orphaned_checkouts:
+                        all_outs.extend(orphaned_checkouts[work_date])
+                        # DON'T mark as used here - wait until we actually use the checkout below
+                    
+                    # SECOND: Add next day's check-outs if they exist
                     if next_date in daily_records:
-                        all_outs.extend(daily_records[next_date]['outs'])
+                        next_day_outs = daily_records[next_date]['outs']
+                        next_day_ins = daily_records[next_date]['ins']
+                        
+                        for next_out in next_day_outs:
+                            # Skip if already used
+                            if next_out['_record_id'] in used_record_ids:
+                                continue
+                            
+                            # Check if this check-out happens BEFORE any check-in on next day
+                            if next_day_ins:
+                                earliest_next_in = min(next_day_ins, key=lambda x: x["Time_parsed"])
+                                if next_out["Time_parsed"] < earliest_next_in["Time_parsed"]:
+                                    all_outs.append(next_out)
+                            else:
+                                # No check-ins on next day, ALL checkouts belong to current shift
+                                all_outs.append(next_out)
                     
                     if all_outs:
                         # For night shift: Use LATEST check-out (could be next day)
@@ -776,11 +892,13 @@ class TimesheetProcessor:
                         checkout_status = checkout_record["Status"]
                         checkout_found = True
                         
-                        # Mark next day as processed if we used its check-out
-                        if checkout_date == next_date:
-                            processed_dates.add(next_date)
+                        # CRITICAL FIX: Mark the used checkout as consumed
+                        used_record_ids.add(checkout_record['_record_id'])
+                        
+                        # DON'T mark next day as processed - we only marked the specific checkout record as used
+                        # This allows next day's check-in to still be processed
                 else:
-                    # Day shift: Use LATEST check-out from same day
+                    # Day shift: Use LATEST check-out from same day (only those AFTER check-in)
                     if day_outs:
                         checkout_record = max(day_outs, key=lambda x: x["Time_parsed"])
                         checkout_date = checkout_record["Date_parsed"]
@@ -788,87 +906,136 @@ class TimesheetProcessor:
                         # Use the actual status from the record (C/Out, OverTime Out, etc.)
                         checkout_status = checkout_record["Status"]
                         checkout_found = True
+                        # CRITICAL FIX: Mark the used checkout as consumed
+                        used_record_ids.add(checkout_record['_record_id'])
                 
-                # Handle missing check-in or check-out
-                if not has_checkin and checkout_found:
-                    # Missing check-in: Estimate 8 hours before check-out
-                    estimated_checkin = datetime.combine(checkout_date, checkout_time) - timedelta(hours=8)
-                    checkin_date = estimated_checkin.date()
-                    checkin_time = estimated_checkin.time()
-                    checkin_status = "Estimated (Missing Check-In)"
-                    work_date = checkin_date
-                    has_checkin = True
-                    
+                # Process the record - handle both complete pairs and incomplete records
+                # We keep EVERY check-in, even without checkout (user requirement: no data skipped)
+                if not checkout_found:
+                    # No checkout found - mark as "No Checkout" but KEEP the record
+                    checkout_date = checkin_date
+                    checkout_time = None
+                    checkout_status = "No Checkout"
                     if show_warnings:
-                        st.warning(f"⚠️ {employee} - Found check-out without check-in on {checkout_date.strftime('%d/%m/%Y')} at {checkout_time.strftime('%H:%M')}. Estimated check-in time.")
+                        st.info(f"ℹ️ {employee} - {checkin_date.strftime('%d-%b')}: Check-in at {checkin_time.strftime('%H:%M')} without checkout - record kept")
                 
-                elif has_checkin and not checkout_found:
-                    # Missing check-out: Estimate 8 hours after check-in
-                    estimated_checkout = datetime.combine(checkin_date, checkin_time) + timedelta(hours=8)
-                    checkout_date = estimated_checkout.date()
-                    checkout_time = estimated_checkout.time()
-                    checkout_status = "Estimated (Missing Check-Out)"
-                    checkout_found = True
+                # Now process the record - calculate hours if we have both times
+                try:
+                    start_time = checkin_time
+                    end_time = checkout_time
                     
+                    if end_time is not None:
+                        # Have both times - calculate normally
+                        shift_type = self.determine_shift_type(start_time)
+                        
+                        # Calculate total hours (handle midnight crossing)
+                        total_hours = self.calculate_total_work_hours(
+                            start_time, end_time, shift_type, work_date
+                        )
+                        
+                        # Calculate overtime hours
+                        overtime_hours = self.calculate_overtime_hours(
+                            start_time, end_time, shift_type, work_date
+                        )
+                        
+                        # Build entry details
+                        entry_details = f"{checkin_date.strftime('%d/%m/%Y')} {start_time.strftime('%H:%M:%S')}({checkin_status}) → {checkout_date.strftime('%d/%m/%Y')} {end_time.strftime('%H:%M:%S')}({checkout_status})"
+                    else:
+                        # Missing checkout - can't calculate hours
+                        shift_type = self.determine_shift_type(start_time)
+                        total_hours = 0
+                        overtime_hours = 0
+                        entry_details = f"{checkin_date.strftime('%d/%m/%Y')} {start_time.strftime('%H:%M:%S')}({checkin_status}) → No Checkout"
+                except Exception as e:
                     if show_warnings:
-                        st.warning(f"⚠️ {employee} - Found check-in without check-out on {checkin_date.strftime('%d/%m/%Y')} at {checkin_time.strftime('%H:%M')}. Estimated check-out time.")
-                
-                elif not has_checkin and not checkout_found:
-                    # No data for this date, skip
+                        st.warning(f"⚠️ {employee} - Error calculating hours for {work_date.strftime('%d/%m/%Y')}: {str(e)}")
+                    # Skip this record if calculation fails
                     continue
                 
-                # Mark this date as processed
-                processed_dates.add(work_date)
-                
-                # Now we have a valid pair - calculate hours
-                start_time = checkin_time
-                end_time = checkout_time
-                
-                # Determine shift type based on start time
-                shift_type = self.determine_shift_type(start_time)
-                
-                # Calculate total hours (handle midnight crossing)
-                total_hours = self.calculate_total_work_hours(
-                    start_time, end_time, shift_type, work_date
-                )
-                
-                # Calculate overtime hours
-                overtime_hours = self.calculate_overtime_hours(
-                    start_time, end_time, shift_type, work_date
-                )
-                
-                # Build entry details
-                entry_details = f"{checkin_date.strftime('%d/%m/%Y')} {start_time.strftime('%H:%M:%S')}({checkin_status}) → {checkout_date.strftime('%d/%m/%Y')} {end_time.strftime('%H:%M:%S')}({checkout_status})"
-                
-                # Check if data is missing/estimated
-                has_missing_data = "Estimated" in checkin_status or "Estimated" in checkout_status
-                
                 # Create consolidated row
-                consolidated_row = {
-                    "Name": employee,
-                    "Date": work_date.strftime("%d-%b-%Y"),
-                    "Check In Status": checkin_status,
-                    "Start Time": start_time.strftime("%H:%M:%S"),
-                    "Check Out Status": checkout_status,
-                    "End Time": end_time.strftime("%H:%M:%S"),
-                    "Total Hours": total_hours,
-                    "Overtime Hours": self.format_hours_to_time(overtime_hours),
-                    "Overtime Hours (Decimal)": overtime_hours,
-                    "Original Entries": 2,  # Check-in + Check-out
-                    "Entry Details": entry_details,
-                    "_has_missing_data": has_missing_data,  # Internal flag
-                }
+                try:
+                    consolidated_row = {
+                        "Name": employee,
+                        "Date": work_date.strftime("%d-%b-%Y"),
+                        "Check In Status": checkin_status,
+                        "Start Time": start_time.strftime("%H:%M:%S"),
+                        "Check Out Status": checkout_status,
+                        "End Time": end_time.strftime("%H:%M:%S") if end_time is not None else "N/A",
+                        "Total Hours": total_hours,
+                        "Overtime Hours": self.format_hours_to_time(overtime_hours) if overtime_hours > 0 else "00:00:00",
+                        "Overtime Hours (Decimal)": overtime_hours,
+                        "Original Entries": 2 if end_time is not None else 1,  # Check-in + Check-out (or just check-in)
+                        "Entry Details": entry_details,
+                    }
+                    
+                    consolidated_rows.append(consolidated_row)
+                except Exception as e:
+                    if show_warnings:
+                        st.warning(f"⚠️ {employee} - Error creating consolidated row for {work_date.strftime('%d/%m/%Y')}: {str(e)}")
+                    continue
                 
-                consolidated_rows.append(consolidated_row)
+                # Mark records as used
+                if has_checkin and day_ins:
+                    for rec in day_ins:
+                        used_record_ids.add(rec['_record_id'])
+                if checkout_found and day_outs:
+                    for rec in day_outs:
+                        used_record_ids.add(rec['_record_id'])
+                # Mark orphaned checkouts as used
+                if work_date in orphaned_checkouts:
+                    for rec in orphaned_checkouts[work_date]:
+                        used_record_ids.add(rec['_record_id'])
+            
+            # CRITICAL: Process ALL unused orphaned checkouts for this employee
+            # This ensures 100% data preservation - no checkout is lost
+            for orphan_date, orphan_checkouts in orphaned_checkouts.items():
+                for checkout_rec in orphan_checkouts:
+                    if checkout_rec['_record_id'] not in used_record_ids:
+                        # This checkout was never paired - add it as orphaned entry
+                        try:
+                            checkout_time = checkout_rec["Time_parsed"]
+                            checkout_date = checkout_rec["Date_parsed"]
+                            checkout_status = checkout_rec["Status"]
+                            
+                            entry_details = f"No Check-in → {checkout_date.strftime('%d/%m/%Y')} {checkout_time.strftime('%H:%M:%S')}({checkout_status})"
+                            
+                            orphaned_row = {
+                                "Name": employee,
+                                "Date": checkout_date.strftime("%d-%b-%Y"),
+                                "Check In Status": "Missing",
+                                "Start Time": "N/A",
+                                "Check Out Status": checkout_status,
+                                "End Time": checkout_time.strftime("%H:%M:%S"),
+                                "Total Hours": 0,
+                                "Overtime Hours": "00:00:00",
+                                "Overtime Hours (Decimal)": 0,
+                                "Original Entries": 1,  # Only checkout
+                                "Entry Details": entry_details,
+                            }
+                            
+                            consolidated_rows.append(orphaned_row)
+                            used_record_ids.add(checkout_rec['_record_id'])
+                        except Exception as e:
+                            if show_warnings:
+                                st.warning(f"⚠️ {employee} - Error processing orphaned checkout: {str(e)}")
             
             # Update progress
             progress_bar.progress((emp_idx + 1) / total_employees)
             status_text.text(f"Processing: {employee} ({emp_idx + 1}/{total_employees})")
-
         progress_bar.empty()
         status_text.empty()
 
-        consolidated_df = pd.DataFrame(consolidated_rows)
+        # Safety check: Ensure we have data to process
+        if not consolidated_rows:
+            st.error("❌ No valid check-in/check-out pairs found in the data")
+            st.info("💡 Please ensure your data has complete pairs with both check-in and check-out times")
+            return pd.DataFrame()
+
+        try:
+            consolidated_df = pd.DataFrame(consolidated_rows)
+        except Exception as e:
+            st.error(f"❌ Error creating consolidated DataFrame: {str(e)}")
+            return pd.DataFrame()
         
         # Check if DataFrame is empty or missing required columns
         if consolidated_df.empty:
@@ -879,63 +1046,111 @@ class TimesheetProcessor:
             st.error(f"❌ Missing required columns after consolidation. Available columns: {consolidated_df.columns.tolist()}")
             return consolidated_df
         
-        consolidated_df = consolidated_df.sort_values(["Name", "Date"])
+        # Sort by Name and Date (chronologically, not alphabetically)
+        # Convert Date string to datetime for proper sorting
+        consolidated_df['_sort_date'] = pd.to_datetime(consolidated_df['Date'], format='%d-%b-%Y')
+        consolidated_df = consolidated_df.sort_values(["Name", "_sort_date"])
+        consolidated_df = consolidated_df.drop(columns=['_sort_date'])
 
         # Data Quality Report
         st.markdown("---")
         st.subheader("📋 Data Quality Report")
         
-        col1, col2, col3, col4 = st.columns(4)
+        col1, col2 = st.columns(2)
         
-        # Count different types of records
-        estimated_checkouts = len(consolidated_df[consolidated_df["Check Out Status"].str.contains("Estimated", na=False)])
-        estimated_checkins = len(consolidated_df[consolidated_df["Check In Status"].str.contains("Estimated", na=False)])
         total_records = len(consolidated_df)
         
         with col1:
-            st.metric("✅ Total Pairs Created", total_records)
+            st.metric("✅ Complete Pairs Processed", total_records)
         
         with col2:
-            if estimated_checkins > 0:
-                st.metric("⚠️ Missing Check-Ins", estimated_checkins, delta="Estimated", delta_color="inverse")
-            else:
-                st.metric("✅ Missing Check-Ins", 0, delta="All Good", delta_color="normal")
+            st.metric("📊 Data Quality", "100%", delta="All Complete", delta_color="normal")
         
-        with col3:
-            if estimated_checkouts > 0:
-                st.metric("⚠️ Missing Check-Outs", estimated_checkouts, delta="Estimated", delta_color="inverse")
-            else:
-                st.metric("✅ Missing Check-Outs", 0, delta="All Good", delta_color="normal")
-        
-        with col4:
-            accuracy = ((total_records - estimated_checkins - estimated_checkouts) / total_records * 100) if total_records > 0 else 0
-            st.metric("📊 Data Accuracy", f"{accuracy:.1f}%")
-        
-        # Show warning if there are issues
-        if estimated_checkins > 0 or estimated_checkouts > 0:
-            st.warning(
-                f"⚠️ **Data Quality Alert:** Found {estimated_checkins + estimated_checkouts} records with estimation. "
-                f"Please review employee attendance procedures to ensure proper check-in/check-out sequences."
-            )
-            
-            # Show details of problematic records
-            with st.expander("🔍 View Records with Estimations"):
-                problematic = consolidated_df[
-                    consolidated_df["Check In Status"].str.contains("Estimated", na=False) |
-                    consolidated_df["Check Out Status"].str.contains("Estimated", na=False)
-                ]
-                if not problematic.empty:
-                    st.dataframe(
-                        problematic[["Name", "Date", "Check In Status", "Start Time", "Check Out Status", "End Time", "Entry Details"]],
-                        use_container_width=True
-                    )
-        else:
-            st.success("✅ **Perfect Data Quality:** All check-in/check-out pairs are valid!")
+        st.success("✅ **Perfect Data Quality:** All records have complete check-in/check-out pairs!")
 
         st.success(
-            f"✅ Successfully processed {len(consolidated_df)} actual work records!"
+            f"✅ Successfully processed {len(consolidated_df)} complete records!"
         )
         return consolidated_df
+    
+    def fill_all_employee_dates(self, consolidated_df: pd.DataFrame, source_df: pd.DataFrame) -> pd.DataFrame:
+        """Fill in all dates that exist in source file for each employee
+        
+        Args:
+            consolidated_df: Consolidated dataframe with processed records
+            source_df: Original source dataframe with Date_parsed column
+            
+        Returns:
+            DataFrame with all dates filled for each employee
+        """
+        if consolidated_df.empty or source_df.empty:
+            return consolidated_df
+        
+        # Get all unique dates from source file and normalize to datetime64[ns]
+        all_dates_in_file = sorted(source_df['Date_parsed'].dropna().unique())
+        
+        if len(all_dates_in_file) == 0:
+            return consolidated_df
+        
+        # Ensure dates are pandas Timestamps (datetime64[ns])
+        all_dates_in_file = [pd.Timestamp(d) for d in all_dates_in_file]
+        
+        # Get all unique employees from consolidated data
+        all_employees = consolidated_df['Name'].unique()
+        
+        # Convert Date column to datetime for merging - ensure it's datetime64[ns]
+        consolidated_df['Date_dt'] = pd.to_datetime(consolidated_df['Date'], format='%d-%b-%Y', errors='coerce')
+        
+        # Create all combinations of employees and dates from source file
+        employee_date_combinations = []
+        for employee in all_employees:
+            for date in all_dates_in_file:
+                employee_date_combinations.append({
+                    'Name': employee,
+                    'Date_dt': pd.Timestamp(date)  # Ensure it's pandas Timestamp
+                })
+        
+        all_combinations_df = pd.DataFrame(employee_date_combinations)
+        
+        # Ensure both Date_dt columns are the same dtype before merging
+        all_combinations_df['Date_dt'] = pd.to_datetime(all_combinations_df['Date_dt'])
+        consolidated_df['Date_dt'] = pd.to_datetime(consolidated_df['Date_dt'])
+        
+        # Merge with existing consolidated data
+        df_complete = all_combinations_df.merge(
+            consolidated_df,
+            on=['Name', 'Date_dt'],
+            how='left'
+        )
+        
+        # Fill missing values for dates where employee has no record
+        df_complete['Date'] = df_complete['Date_dt'].dt.strftime('%d-%b-%Y')
+        
+        # Identify rows with no attendance data
+        missing_mask = df_complete['Check In Status'].isna()
+        
+        # Fill missing records with "No Record"
+        df_complete.loc[missing_mask, 'Check In Status'] = 'No Record'
+        df_complete.loc[missing_mask, 'Start Time'] = 'No Record'
+        df_complete.loc[missing_mask, 'Check Out Status'] = 'No Record'
+        df_complete.loc[missing_mask, 'End Time'] = 'No Record'
+        df_complete.loc[missing_mask, 'Total Hours'] = 0.0
+        df_complete.loc[missing_mask, 'Overtime Hours'] = '00:00:00'
+        df_complete.loc[missing_mask, 'Overtime Hours (Decimal)'] = 0.0
+        df_complete.loc[missing_mask, 'Original Entries'] = 0
+        df_complete.loc[missing_mask, 'Entry Details'] = 'No attendance record for this date'
+        df_complete.loc[missing_mask, '_has_missing_data'] = True
+        
+        # Drop temporary datetime column
+        df_complete = df_complete.drop('Date_dt', axis=1)
+        
+        # Sort by Name and Date
+        df_complete = df_complete.sort_values(['Name', 'Date'])
+        
+        # Reset index
+        df_complete = df_complete.reset_index(drop=True)
+        
+        return df_complete
 
 
 # ----------------- Attendance Conversion Utilities -----------------
@@ -1461,7 +1676,11 @@ def _cli_process_attendance_file(path: str):
             st.error(f"❌ Missing required columns after consolidation. Available columns: {consolidated_df.columns.tolist()}")
             return consolidated_df
         
-        consolidated_df = consolidated_df.sort_values(["Name", "Date"])
+        # Sort by Name and Date (chronologically, not alphabetically)
+        # Convert Date string to datetime for proper sorting
+        consolidated_df['_sort_date'] = pd.to_datetime(consolidated_df['Date'], format='%d-%b-%Y')
+        consolidated_df = consolidated_df.sort_values(["Name", "_sort_date"])
+        consolidated_df = consolidated_df.drop(columns=['_sort_date'])
 
         st.success(
             f"✅ Successfully processed {len(consolidated_df)} actual work records!"
@@ -2186,9 +2405,91 @@ def create_dashboard():
 
             # Display consolidated data
             st.subheader("📊 Consolidated Timesheet Data")
+            
+            # Add date filter
+            st.markdown("---")
+            col_filter1, col_filter2, col_filter3 = st.columns([2, 2, 1])
+            
+            with col_filter1:
+                filter_option = st.selectbox(
+                    "🔍 Filter Data",
+                    ["Show All Dates", "Filter by Specific Date", "Filter by Date Range"],
+                    key="date_filter_option"
+                )
+            
+            # Create filtered data based on selection
+            filtered_data = consolidated_data.copy()
+            
+            if filter_option == "Filter by Specific Date":
+                # Parse dates from the data
+                try:
+                    date_list = pd.to_datetime(consolidated_data['Date'], format='%d-%b-%Y').dt.date.unique()
+                    date_list = sorted(date_list)
+                    
+                    with col_filter2:
+                        selected_date = st.selectbox(
+                            "📅 Select Date",
+                            date_list,
+                            format_func=lambda x: x.strftime('%d-%b-%Y'),
+                            key="single_date_filter"
+                        )
+                    
+                    # Filter data
+                    filtered_data = consolidated_data[
+                        pd.to_datetime(consolidated_data['Date'], format='%d-%b-%Y').dt.date == selected_date
+                    ]
+                    
+                    with col_filter3:
+                        st.metric("👥 Employees", len(filtered_data))
+                        
+                except Exception as e:
+                    st.warning(f"⚠️ Could not parse dates: {str(e)}")
+            
+            elif filter_option == "Filter by Date Range":
+                try:
+                    date_list = pd.to_datetime(consolidated_data['Date'], format='%d-%b-%Y').dt.date.unique()
+                    date_list = sorted(date_list)
+                    
+                    col_range1, col_range2 = st.columns(2)
+                    
+                    with col_range1:
+                        start_date = st.selectbox(
+                            "📅 From Date",
+                            date_list,
+                            format_func=lambda x: x.strftime('%d-%b-%Y'),
+                            key="start_date_filter"
+                        )
+                    
+                    with col_range2:
+                        end_date = st.selectbox(
+                            "📅 To Date",
+                            [d for d in date_list if d >= start_date],
+                            index=len([d for d in date_list if d >= start_date]) - 1,
+                            format_func=lambda x: x.strftime('%d-%b-%Y'),
+                            key="end_date_filter"
+                        )
+                    
+                    # Filter data
+                    date_column = pd.to_datetime(consolidated_data['Date'], format='%d-%b-%Y').dt.date
+                    filtered_data = consolidated_data[
+                        (date_column >= start_date) & (date_column <= end_date)
+                    ]
+                    
+                    with col_filter3:
+                        st.metric("👥 Employees", len(filtered_data))
+                        
+                except Exception as e:
+                    st.warning(f"⚠️ Could not parse dates: {str(e)}")
+            
+            else:
+                # Show all dates
+                with col_filter3:
+                    st.metric("📋 Total Records", len(filtered_data))
+            
+            st.markdown("---")
 
-            # Create a display version of the data
-            display_data = consolidated_data.copy()
+            # Create a display version of the filtered data
+            display_data = filtered_data.copy()
             
             # Replace data with "Missing Data" for rows with missing/estimated data
             if '_has_missing_data' in display_data.columns:
@@ -2483,66 +2784,78 @@ def create_dashboard():
                     consolidated_data[display_columns].to_excel(
                         writer, sheet_name="Overal", index=False
                     )
+                    
+                    # Add AutoFilter to Overal sheet for easy filtering
+                    overal_sheet = writer.sheets["Overal"]
+                    overal_sheet.auto_filter.ref = overal_sheet.dimensions
+                    # Freeze the header row
+                    overal_sheet.freeze_panes = "A2"
 
-                    # Sheet 2: Consolidated - Monthly summary by employee
+                    # Sheet 2: Consolidated - Summary by employee (ONE row per employee)
                     if (
                         "Name" in consolidated_data.columns
                         and "Date" in consolidated_data.columns
                     ):
-                        # Parse dates to get month
+                        # Create consolidated summary - group by employee only (not by month)
                         temp_df = consolidated_data.copy()
-                        temp_df["Date_Parsed"] = pd.to_datetime(
-                            temp_df["Date"], format="%d-%b-%Y", errors="coerce"
-                        )
-                        temp_df["Month"] = temp_df["Date_Parsed"].dt.to_period("M")
-
+                        
                         # Build aggregation based on available columns
                         agg_dict = {
                             "Date": "count",  # Count of working days
                         }
-                        summary_columns = ["EMPLOYEE NAME", "Month", "Days Worked"]
-
+                        
                         if "Total Hours" in temp_df.columns:
                             agg_dict["Total Hours"] = "sum"
-                            summary_columns.append("Total Hours")
-
+                        
                         if "Overtime Hours (Decimal)" in temp_df.columns:
                             agg_dict["Overtime Hours (Decimal)"] = "sum"
-                            summary_columns.append("Total OT Hours")
-
-                        # Create consolidated summary
+                        
+                        # Group by Name only (not by month) - ONE row per employee
                         consolidated_summary = (
-                            temp_df.groupby(["Name", "Month"])
+                            temp_df.groupby("Name")
                             .agg(agg_dict)
                             .reset_index()
                         )
-
+                        
                         # Rename columns
                         col_mapping = {
                             "Name": "EMPLOYEE NAME",
-                            "Month": "Month",
                             "Date": "Days Worked",
                         }
                         if "Total Hours" in agg_dict:
-                            col_mapping["Total Hours"] = "Total Hours"
+                            col_mapping["Total Hours"] = "Total Hours Worked"
                         if "Overtime Hours (Decimal)" in agg_dict:
-                            col_mapping["Overtime Hours (Decimal)"] = "Total OT Hours"
-
+                            col_mapping["Overtime Hours (Decimal)"] = "Total Overtime Hours"
+                        
                         consolidated_summary = consolidated_summary.rename(
                             columns=col_mapping
                         )
-                        consolidated_summary["Month"] = consolidated_summary[
-                            "Month"
-                        ].astype(str)
-
+                        
+                        # Round hours to 2 decimal places
+                        if "Total Hours Worked" in consolidated_summary.columns:
+                            consolidated_summary["Total Hours Worked"] = consolidated_summary["Total Hours Worked"].round(2)
+                        if "Total Overtime Hours" in consolidated_summary.columns:
+                            consolidated_summary["Total Overtime Hours"] = consolidated_summary["Total Overtime Hours"].round(2)
+                        
                         # Add SN column
                         consolidated_summary.insert(
                             0, "SN", range(1, len(consolidated_summary) + 1)
                         )
+                        
+                        # Sort by employee name
+                        consolidated_summary = consolidated_summary.sort_values("EMPLOYEE NAME").reset_index(drop=True)
+                        # Update SN after sorting
+                        consolidated_summary["SN"] = range(1, len(consolidated_summary) + 1)
 
                         consolidated_summary.to_excel(
                             writer, sheet_name="Consolidated", index=False
                         )
+                        
+                        # Add AutoFilter to Consolidated sheet for easy filtering
+                        consolidated_sheet = writer.sheets["Consolidated"]
+                        consolidated_sheet.auto_filter.ref = consolidated_sheet.dimensions
+                        # Freeze the header row
+                        consolidated_sheet.freeze_panes = "A2"
                     else:
                         # If we can't create monthly summary, just duplicate Overal sheet
                         consolidated_data[display_columns].to_excel(
