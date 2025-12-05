@@ -2361,11 +2361,12 @@ def create_dashboard():
     processor = TimesheetProcessor()
 
     # Create main navigation tabs
-    tab1, tab2, tab_stats, tab3, tab4, tab_ot, tab5, tab6, tab7, tab8, tab9 = st.tabs(
+    tab1, tab2, tab_stats, tab_verify, tab3, tab4, tab_ot, tab5, tab6, tab7, tab8, tab9 = st.tabs(
         [
             "📊 Timesheet Processing",
             "🔄 Attendance Consolidation",
             "📈 Attendance Statistics",
+            "🔐 Verification Methods",
             "🧠 Advanced Analysis",
             "🔍 Filter & Export by Date/Name",
             "💰 OT Consolidation (1.5x)",
@@ -3860,6 +3861,216 @@ def create_dashboard():
                     - Column name variations
                     """
                     )
+
+    # Tab: Verification Methods Analysis
+    with tab_verify:
+        st.header("🔐 Verification Method Analysis")
+        st.markdown("""
+        **Track how employees check in and out using different verification methods:**
+        - 🖐️ **FP (Fingerprint)**: Biometric fingerprint verification
+        - 🔑 **PW (Password)**: Manual password entry
+        - 📡 **RF (RFID)**: RFID card swipe
+        """)
+        
+        uploaded_file = st.file_uploader(
+            "📁 Upload Attendance File (Excel/CSV)",
+            type=["xlsx", "xls", "csv"],
+            key="verify_file_uploader",
+            help="Upload your attendance file with VerifyCode column"
+        )
+        
+        if uploaded_file is not None:
+            try:
+                with st.spinner("🔄 Loading attendance data..."):
+                    from attendance_analyzer import load_attendance_file, calculate_verification_methods
+                    
+                    # Load the file
+                    df = load_attendance_file(uploaded_file)
+                    
+                    # Validate VerifyCode column exists
+                    if 'VerifyCode' not in df.columns:
+                        st.error("❌ The uploaded file does not contain a 'VerifyCode' column!")
+                        st.stop()
+                    
+                    st.success(f"✅ Loaded {len(df):,} records for {df['Name'].nunique()} employees")
+                    
+                    # Calculate verification method statistics
+                    verify_stats = calculate_verification_methods(df)
+                    
+                    # Display overall method summary
+                    st.markdown("---")
+                    st.subheader("📊 Overall Verification Method Usage")
+                    
+                    col1, col2, col3 = st.columns(3)
+                    
+                    method_summary = verify_stats['by_method']
+                    
+                    for idx, row in method_summary.iterrows():
+                        icon = {'Fingerprint': '🖐️', 'Password': '🔑', 'RFID': '📡'}.get(row['Method'], '❓')
+                        col = [col1, col2, col3][idx]
+                        
+                        with col:
+                            st.metric(
+                                label=f"{icon} {row['Method']}",
+                                value=f"{row['Total_Count']:,} uses",
+                                delta=f"{row['Employee_Count']} employees ({row['Percentage']:.1f}%)"
+                            )
+                    
+                    # Visualization: Method Distribution
+                    st.markdown("---")
+                    st.subheader("📈 Method Usage Distribution")
+                    
+                    fig_pie = px.pie(
+                        method_summary,
+                        values='Total_Count',
+                        names='Method',
+                        title='Verification Methods by Total Uses',
+                        color='Method',
+                        color_discrete_map={
+                            'Fingerprint': '#45B7D1',
+                            'Password': '#FF6B6B',
+                            'RFID': '#4ECDC4'
+                        }
+                    )
+                    fig_pie.update_traces(textposition='inside', textinfo='percent+label')
+                    st.plotly_chart(fig_pie, use_container_width=True)
+                    
+                    # Employee-level breakdown tabs
+                    st.markdown("---")
+                    st.subheader("👥 Employee-Level Breakdown")
+                    
+                    tab_fp, tab_pw, tab_rf, tab_all = st.tabs([
+                        "🖐️ Fingerprint Users",
+                        "🔑 Password Users",
+                        "📡 RFID Users",
+                        "📋 All Employees"
+                    ])
+                    
+                    with tab_fp:
+                        st.markdown(f"**{len(verify_stats['method_users']['FP'])} employees** use Fingerprint verification")
+                        if not verify_stats['method_users']['FP'].empty:
+                            fp_display = verify_stats['method_users']['FP'].copy()
+                            fp_display['Rank'] = range(1, len(fp_display) + 1)
+                            fp_display = fp_display[['Rank', 'Name', 'Department', 'Usage_Count', 'Total_Records']]
+                            fp_display['Usage_%'] = (fp_display['Usage_Count'] / fp_display['Total_Records'] * 100).round(2)
+                            st.dataframe(fp_display, use_container_width=True, hide_index=True)
+                            
+                            # Top users chart
+                            top_fp = fp_display.head(10)
+                            fig_fp = px.bar(
+                                top_fp,
+                                x='Name',
+                                y='Usage_Count',
+                                title='Top 10 Fingerprint Users',
+                                color_discrete_sequence=['#45B7D1'],
+                                text='Usage_Count'
+                            )
+                            fig_fp.update_traces(textposition='outside')
+                            fig_fp.update_layout(xaxis_tickangle=-45)
+                            st.plotly_chart(fig_fp, use_container_width=True)
+                        else:
+                            st.info("No employees use Fingerprint verification")
+                    
+                    with tab_pw:
+                        st.markdown(f"**{len(verify_stats['method_users']['PW'])} employees** use Password verification")
+                        if not verify_stats['method_users']['PW'].empty:
+                            pw_display = verify_stats['method_users']['PW'].copy()
+                            pw_display['Rank'] = range(1, len(pw_display) + 1)
+                            pw_display = pw_display[['Rank', 'Name', 'Department', 'Usage_Count', 'Total_Records']]
+                            pw_display['Usage_%'] = (pw_display['Usage_Count'] / pw_display['Total_Records'] * 100).round(2)
+                            st.dataframe(pw_display, use_container_width=True, hide_index=True)
+                            
+                            # Top users chart
+                            top_pw = pw_display.head(10)
+                            fig_pw = px.bar(
+                                top_pw,
+                                x='Name',
+                                y='Usage_Count',
+                                title='Top 10 Password Users',
+                                color_discrete_sequence=['#FF6B6B'],
+                                text='Usage_Count'
+                            )
+                            fig_pw.update_traces(textposition='outside')
+                            fig_pw.update_layout(xaxis_tickangle=-45)
+                            st.plotly_chart(fig_pw, use_container_width=True)
+                        else:
+                            st.info("No employees use Password verification")
+                    
+                    with tab_rf:
+                        st.markdown(f"**{len(verify_stats['method_users']['RF'])} employees** use RFID verification")
+                        if not verify_stats['method_users']['RF'].empty:
+                            rf_display = verify_stats['method_users']['RF'].copy()
+                            rf_display['Rank'] = range(1, len(rf_display) + 1)
+                            rf_display = rf_display[['Rank', 'Name', 'Department', 'Usage_Count', 'Total_Records']]
+                            rf_display['Usage_%'] = (rf_display['Usage_Count'] / rf_display['Total_Records'] * 100).round(2)
+                            st.dataframe(rf_display, use_container_width=True, hide_index=True)
+                            
+                            # Top users chart
+                            fig_rf = px.bar(
+                                rf_display,
+                                x='Name',
+                                y='Usage_Count',
+                                title='RFID Users',
+                                color_discrete_sequence=['#4ECDC4'],
+                                text='Usage_Count'
+                            )
+                            fig_rf.update_traces(textposition='outside')
+                            fig_rf.update_layout(xaxis_tickangle=-45)
+                            st.plotly_chart(fig_rf, use_container_width=True)
+                        else:
+                            st.info("No employees use RFID verification")
+                    
+                    with tab_all:
+                        st.markdown(f"**Complete list of all {len(verify_stats['by_employee'])} employees** with verification method breakdown")
+                        
+                        all_display = verify_stats['by_employee'].copy()
+                        all_display['Rank'] = range(1, len(all_display) + 1)
+                        all_display = all_display[[
+                            'Rank', 'Name', 'Department', 
+                            'FP_Count', 'PW_Count', 'RF_Count', 
+                            'Total_Records', 'Primary_Method'
+                        ]]
+                        
+                        st.dataframe(all_display, use_container_width=True, hide_index=True)
+                        
+                        # Download button
+                        csv = all_display.to_csv(index=False)
+                        st.download_button(
+                            label="📥 Download Full Report (CSV)",
+                            data=csv,
+                            file_name=f"verification_methods_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+                            mime="text/csv"
+                        )
+                        
+                        # Primary method distribution
+                        st.markdown("---")
+                        st.subheader("📊 Primary Verification Method Distribution")
+                        
+                        primary_counts = all_display['Primary_Method'].value_counts().reset_index()
+                        primary_counts.columns = ['Method', 'Count']
+                        
+                        fig_primary = px.bar(
+                            primary_counts,
+                            x='Method',
+                            y='Count',
+                            title='Employees by Primary Verification Method',
+                            color='Method',
+                            color_discrete_map={
+                                'Fingerprint': '#45B7D1',
+                                'Password': '#FF6B6B',
+                                'RFID': '#4ECDC4',
+                                'None': '#CCCCCC'
+                            },
+                            text='Count'
+                        )
+                        fig_primary.update_traces(textposition='outside')
+                        st.plotly_chart(fig_primary, use_container_width=True)
+                
+            except Exception as e:
+                st.error(f"❌ Error processing file: {str(e)}")
+                st.exception(e)
+        else:
+            st.info("👆 Please upload an attendance file to analyze verification methods")
 
     # Tab 3: Advanced Analysis
     with tab3:

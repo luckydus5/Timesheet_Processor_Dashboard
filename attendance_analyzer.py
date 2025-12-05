@@ -690,6 +690,97 @@ def validate_data(df: pd.DataFrame) -> Dict:
     }
 
 
+def calculate_verification_methods(df: pd.DataFrame) -> Dict[str, pd.DataFrame]:
+    """
+    Calculate verification method usage statistics for each employee.
+    
+    Args:
+        df: DataFrame with attendance data (must have 'Name', 'VerifyCode', 'Department' columns)
+        
+    Returns:
+        Dictionary with:
+        - 'by_employee': DataFrame with Name, Department, FP_Count, PW_Count, RF_Count, Total_Records, Primary_Method
+        - 'by_method': DataFrame with Method, Total_Count, Employee_Count, Percentage
+        - 'method_users': Dict with 'FP', 'PW', 'RF' keys containing DataFrames of users for each method
+    """
+    # Group by employee and verification method
+    employee_method_counts = df.groupby(['Name', 'Department', 'VerifyCode']).size().reset_index(name='Count')
+    
+    # Pivot to get counts per method for each employee
+    employee_pivot = employee_method_counts.pivot_table(
+        index=['Name', 'Department'],
+        columns='VerifyCode',
+        values='Count',
+        fill_value=0
+    ).reset_index()
+    
+    # Ensure all method columns exist (FP, PW, RF)
+    for method in ['FP', 'PW', 'RF']:
+        if method not in employee_pivot.columns:
+            employee_pivot[method] = 0
+    
+    # Rename columns for clarity
+    employee_pivot.rename(columns={
+        'FP': 'FP_Count',
+        'PW': 'PW_Count',
+        'RF': 'RF_Count'
+    }, inplace=True)
+    
+    # Calculate total records per employee
+    employee_pivot['Total_Records'] = (
+        employee_pivot['FP_Count'] + 
+        employee_pivot['PW_Count'] + 
+        employee_pivot['RF_Count']
+    )
+    
+    # Determine primary method (method with highest count)
+    def get_primary_method(row):
+        methods = {
+            'Fingerprint': row['FP_Count'],
+            'Password': row['PW_Count'],
+            'RFID': row['RF_Count']
+        }
+        return max(methods, key=methods.get) if row['Total_Records'] > 0 else 'None'
+    
+    employee_pivot['Primary_Method'] = employee_pivot.apply(get_primary_method, axis=1)
+    
+    # Sort by total records (descending)
+    employee_pivot = employee_pivot.sort_values('Total_Records', ascending=False)
+    
+    # Calculate overall method statistics
+    method_stats = []
+    for method, full_name in [('FP', 'Fingerprint'), ('PW', 'Password'), ('RF', 'RFID')]:
+        col_name = f'{method}_Count'
+        total_count = employee_pivot[col_name].sum()
+        employee_count = (employee_pivot[col_name] > 0).sum()
+        percentage = (total_count / employee_pivot['Total_Records'].sum() * 100) if employee_pivot['Total_Records'].sum() > 0 else 0
+        
+        method_stats.append({
+            'Method': full_name,
+            'Code': method,
+            'Total_Count': int(total_count),
+            'Employee_Count': int(employee_count),
+            'Percentage': round(percentage, 2)
+        })
+    
+    method_summary = pd.DataFrame(method_stats).sort_values('Total_Count', ascending=False)
+    
+    # Create lists of employees who use each method
+    method_users = {}
+    for method, full_name in [('FP', 'Fingerprint'), ('PW', 'Password'), ('RF', 'RFID')]:
+        col_name = f'{method}_Count'
+        users_df = employee_pivot[employee_pivot[col_name] > 0][['Name', 'Department', col_name, 'Total_Records']].copy()
+        users_df.rename(columns={col_name: 'Usage_Count'}, inplace=True)
+        users_df = users_df.sort_values('Usage_Count', ascending=False)
+        method_users[method] = users_df
+    
+    return {
+        'by_employee': employee_pivot,
+        'by_method': method_summary,
+        'method_users': method_users
+    }
+
+
 if __name__ == "__main__":
     # Test with a sample file if run directly
     import sys
