@@ -1,18 +1,19 @@
 #!/usr/bin/env python3
 """
-🧹 TIMESHEET CONSOLIDATOR DASHBOARD
-Professional Web Interface for Timesheet Data Processing
+📊 ATTENDANCE STATISTICS DASHBOARD
+Professional Web Interface for Attendance & Timesheet Data Processing
 
 Features:
 - File upload (Excel/CSV)
+- Attendance statistics & Top 10 rankings
 - Automatic duplicate entry consolidation
 - Business rules application
 - Interactive data visualization
 - Export functionality
 - Real-time processing feedback
 
-Author: AI Assistant
-Created: October 2025
+Author: Olivier
+Created: December 2025
 """
 
 import base64
@@ -47,6 +48,7 @@ try:
         consolidate_overtime_by_employee_month,
         compare_ot_calculations,
     )
+
     OT_MODULE_AVAILABLE = True
 except ImportError:
     OT_MODULE_AVAILABLE = False
@@ -68,8 +70,8 @@ except ImportError:
 
 # Page Configuration
 st.set_page_config(
-    page_title="🧹 Timesheet Consolidator Dashboard",
-    page_icon="🧹",
+    page_title="📊 Attendance Statistics Dashboard",
+    page_icon="📊",
     layout="wide",
     initial_sidebar_state="expanded",
 )
@@ -188,12 +190,12 @@ class TimesheetProcessor:
         try:
             # Try multiple formats
             formats_to_try = [
-                "%d/%m/%Y %H:%M:%S",     # 01/08/2025 06:43:19
-                "%m/%d/%Y %H:%M:%S",     # 08/01/2025 06:43:19
-                "%d-%b-%y %H:%M:%S",     # 19-Apr-25 7:40:09
-                "%d-%b-%Y %H:%M:%S",     # 19-Apr-2025 7:40:09
+                "%d/%m/%Y %H:%M:%S",  # 01/08/2025 06:43:19
+                "%m/%d/%Y %H:%M:%S",  # 08/01/2025 06:43:19
+                "%d-%b-%y %H:%M:%S",  # 19-Apr-25 7:40:09
+                "%d-%b-%Y %H:%M:%S",  # 19-Apr-2025 7:40:09
             ]
-            
+
             for fmt in formats_to_try:
                 try:
                     dt_obj = pd.to_datetime(datetime_str, format=fmt)
@@ -202,7 +204,7 @@ class TimesheetProcessor:
                     return date_obj, time_obj
                 except:
                     continue
-            
+
             # If all formats fail, try pandas automatic parsing
             dt_obj = pd.to_datetime(datetime_str, dayfirst=True)
             date_obj = dt_obj.date()
@@ -257,7 +259,7 @@ class TimesheetProcessor:
 
     def calculate_total_work_hours(self, start_time, end_time, shift_type, work_date):
         """Calculate total work hours between start and end time
-        
+
         CRITICAL BUSINESS RULES:
         - Day Shift: Work counted from 08:00 AM to 17:00 PM (ignore check-ins before 08:00)
         - Night Shift: Work counted from 18:00 PM to 03:00 AM (ignore check-ins before 18:00)
@@ -267,17 +269,19 @@ class TimesheetProcessor:
 
         # Determine if this is a night shift
         start_hour = start_time.hour + start_time.minute / 60
-        is_night_shift = start_hour >= 15.8333  # 15:50 (3:50 PM) - night shift detection
-        
+        is_night_shift = (
+            start_hour >= 15.8333
+        )  # 15:50 (3:50 PM) - night shift detection
+
         if is_night_shift:
             # NIGHT SHIFT: Work counted from 18:00 PM to 03:00 AM
             # Start counting from 18:00 PM (ignore early check-ins)
             work_start_time = time(18, 0, 0)  # 18:00 PM
             work_start_dt = datetime.combine(work_date, work_start_time)
-            
+
             # End time is next day (cross-midnight)
             work_end_dt = datetime.combine(work_date + timedelta(days=1), end_time)
-            
+
             # Calculate hours from 18:00 PM to check-out time
             total_duration = work_end_dt - work_start_dt
             total_hours = total_duration.total_seconds() / 3600
@@ -290,14 +294,14 @@ class TimesheetProcessor:
             else:
                 # Employee checked in at or after 08:00 AM - use actual check-in
                 work_start_time = start_time
-            
+
             work_start_dt = datetime.combine(work_date, work_start_time)
             work_end_dt = datetime.combine(work_date, end_time)
-            
+
             # Calculate hours from work start to check-out
             total_duration = work_end_dt - work_start_dt
             total_hours = total_duration.total_seconds() / 3600
-        
+
         return round(total_hours, 2)
 
     def calculate_overtime_hours(self, start_time, end_time, shift_type, work_date):
@@ -419,10 +423,12 @@ class TimesheetProcessor:
 
         return df
 
-    def load_excel_with_fallback(self, file_obj, filename: str) -> Optional[pd.DataFrame]:
+    def load_excel_with_fallback(
+        self, file_obj, filename: str
+    ) -> Optional[pd.DataFrame]:
         """Load Excel file with multiple engine fallbacks for maximum compatibility"""
-        engines = ['openpyxl', 'xlrd', None]  # None uses default engine
-        
+        engines = ["openpyxl", "xlrd", None]  # None uses default engine
+
         for engine in engines:
             try:
                 if engine:
@@ -436,31 +442,56 @@ class TimesheetProcessor:
                     return None
                 continue
         return None
-    
+
     def detect_and_fix_columns(self, df: pd.DataFrame) -> pd.DataFrame:
         """Automatically detect and fix/normalize column names"""
         if df is None or df.empty:
             return df
-        
+
         # Create column mapping dictionary (variations -> standard name)
         column_mappings = {
-            'Name': ['name', 'employee', 'employee name', 'emp name', 'staff', 'staff name', 'person', 'user'],
-            'Date': ['date', 'day', 'work date', 'date worked', 'attendance date'],
-            'Time': ['time', 'clock time', 'timestamp', 'time stamp'],
-            'Date/Time': ['date/time', 'datetime', 'date time', 'date & time'],
-            'Status': ['status', 'check status', 'type', 'action', 'event'],
-            'Check In': ['check in', 'checkin', 'check-in', 'in', 'time in', 'clock in', 'entry'],
-            'Check Out': ['check out', 'checkout', 'check-out', 'out', 'time out', 'clock out', 'exit'],
+            "Name": [
+                "name",
+                "employee",
+                "employee name",
+                "emp name",
+                "staff",
+                "staff name",
+                "person",
+                "user",
+            ],
+            "Date": ["date", "day", "work date", "date worked", "attendance date"],
+            "Time": ["time", "clock time", "timestamp", "time stamp"],
+            "Date/Time": ["date/time", "datetime", "date time", "date & time"],
+            "Status": ["status", "check status", "type", "action", "event"],
+            "Check In": [
+                "check in",
+                "checkin",
+                "check-in",
+                "in",
+                "time in",
+                "clock in",
+                "entry",
+            ],
+            "Check Out": [
+                "check out",
+                "checkout",
+                "check-out",
+                "out",
+                "time out",
+                "clock out",
+                "exit",
+            ],
         }
-        
+
         # Track renamed columns for reporting
         renamed_columns = {}
-        
+
         # Normalize existing column names
         new_columns = {}
         for col in df.columns:
             col_lower = str(col).lower().strip()
-            
+
             # Check each standard column name
             for standard_name, variations in column_mappings.items():
                 if col_lower in variations or col_lower == standard_name.lower():
@@ -468,80 +499,99 @@ class TimesheetProcessor:
                     if col != standard_name:
                         renamed_columns[col] = standard_name
                     break
-        
+
         # Apply column renames
         if new_columns:
             df = df.rename(columns=new_columns)
-        
+
         # Report column fixes
         if renamed_columns:
-            st.info(f"✅ Auto-corrected columns: {', '.join([f'{old} → {new}' for old, new in renamed_columns.items()])}")
-        
+            st.info(
+                f"✅ Auto-corrected columns: {', '.join([f'{old} → {new}' for old, new in renamed_columns.items()])}"
+            )
+
         return df
-    
+
     def add_missing_columns(self, df: pd.DataFrame) -> pd.DataFrame:
         """Add any missing required columns with default values"""
         if df is None or df.empty:
             return df
-        
+
         added_columns = []
-        
+
         # Check and add missing essential columns
-        if 'Name' not in df.columns:
-            df['Name'] = 'Unknown'
-            added_columns.append('Name')
-        
-        if 'Status' not in df.columns and 'Check In' not in df.columns:
+        if "Name" not in df.columns:
+            df["Name"] = "Unknown"
+            added_columns.append("Name")
+
+        if "Status" not in df.columns and "Check In" not in df.columns:
             # If no Status and no Check In/Out columns, add Status
-            df['Status'] = 'Unknown'
-            added_columns.append('Status')
-        
+            df["Status"] = "Unknown"
+            added_columns.append("Status")
+
         # If Date/Time exists but not Date/Time separately
-        if 'Date/Time' in df.columns and ('Date' not in df.columns or 'Time' not in df.columns):
+        if "Date/Time" in df.columns and (
+            "Date" not in df.columns or "Time" not in df.columns
+        ):
             try:
-                split_data = df['Date/Time'].astype(str).str.split(' ', n=1, expand=True)
-                if 'Date' not in df.columns:
-                    df['Date'] = split_data[0] if len(split_data.columns) > 0 else ''
-                    added_columns.append('Date (from Date/Time)')
-                if 'Time' not in df.columns:
-                    df['Time'] = split_data[1] if len(split_data.columns) > 1 else ''
-                    added_columns.append('Time (from Date/Time)')
+                split_data = (
+                    df["Date/Time"].astype(str).str.split(" ", n=1, expand=True)
+                )
+                if "Date" not in df.columns:
+                    df["Date"] = split_data[0] if len(split_data.columns) > 0 else ""
+                    added_columns.append("Date (from Date/Time)")
+                if "Time" not in df.columns:
+                    df["Time"] = split_data[1] if len(split_data.columns) > 1 else ""
+                    added_columns.append("Time (from Date/Time)")
             except:
                 pass
-        
+
         # If Date and Time exist but not Date/Time
-        if 'Date' in df.columns and 'Time' in df.columns and 'Date/Time' not in df.columns:
-            df['Date/Time'] = df['Date'].astype(str) + ' ' + df['Time'].astype(str)
-        
+        if (
+            "Date" in df.columns
+            and "Time" in df.columns
+            and "Date/Time" not in df.columns
+        ):
+            df["Date/Time"] = df["Date"].astype(str) + " " + df["Time"].astype(str)
+
         # Report added columns
         if added_columns:
             st.warning(f"⚠️ Added missing columns: {', '.join(added_columns)}")
-        
+
         return df
 
     def load_timesheet_file(self, uploaded_file) -> Optional[pd.DataFrame]:
         """Load timesheet data from uploaded file - supports ALL Excel formats and auto-corrects columns"""
         try:
             # Load file based on extension with maximum compatibility
-            if uploaded_file.name.lower().endswith('.xlsx') or uploaded_file.name.lower().endswith('.xls') or uploaded_file.name.lower().endswith('.xlsm') or uploaded_file.name.lower().endswith('.xlsb'):
+            if (
+                uploaded_file.name.lower().endswith(".xlsx")
+                or uploaded_file.name.lower().endswith(".xls")
+                or uploaded_file.name.lower().endswith(".xlsm")
+                or uploaded_file.name.lower().endswith(".xlsb")
+            ):
                 df = self.load_excel_with_fallback(uploaded_file, uploaded_file.name)
                 if df is None:
                     return None
             elif uploaded_file.name.lower().endswith(".csv"):
-                df = pd.read_csv(uploaded_file, encoding='utf-8', encoding_errors='ignore')
+                df = pd.read_csv(
+                    uploaded_file, encoding="utf-8", encoding_errors="ignore"
+                )
             else:
-                st.error("❌ Unsupported file format. Supported: .xlsx, .xls, .xlsm, .xlsb, .csv")
+                st.error(
+                    "❌ Unsupported file format. Supported: .xlsx, .xls, .xlsm, .xlsb, .csv"
+                )
                 return None
 
             st.success(f"✅ Successfully loaded file: {uploaded_file.name}")
             st.info(f"📋 Original columns: {list(df.columns)}")
-            
+
             # Auto-detect and fix column names
             df = self.detect_and_fix_columns(df)
-            
+
             # Add any missing essential columns
             df = self.add_missing_columns(df)
-            
+
             # Detect file format: Attendance vs Timesheet
             has_checkin_checkout = any(
                 "check in" in str(col).lower() for col in df.columns
@@ -571,20 +621,30 @@ class TimesheetProcessor:
                 return None
 
             # Handle different timesheet formats
-            if "Date/Time" in df.columns and ("Date" not in df.columns or "Time" not in df.columns):
-                st.info("🔄 Detected inline Date/Time format - splitting into Date and Time...")
-                split_data = df["Date/Time"].astype(str).str.split(" ", n=1, expand=True)
-                df["Date"] = split_data[0] if len(split_data.columns) > 0 else ''
-                df["Time"] = split_data[1] if len(split_data.columns) > 1 else ''
+            if "Date/Time" in df.columns and (
+                "Date" not in df.columns or "Time" not in df.columns
+            ):
+                st.info(
+                    "🔄 Detected inline Date/Time format - splitting into Date and Time..."
+                )
+                split_data = (
+                    df["Date/Time"].astype(str).str.split(" ", n=1, expand=True)
+                )
+                df["Date"] = split_data[0] if len(split_data.columns) > 0 else ""
+                df["Time"] = split_data[1] if len(split_data.columns) > 1 else ""
 
             # Final validation - check for required columns
             required_cols = ["Name", "Status", "Date", "Time"]
             missing_cols = [col for col in required_cols if col not in df.columns]
 
             if missing_cols:
-                st.error(f"❌ Still missing required columns after auto-correction: {missing_cols}")
+                st.error(
+                    f"❌ Still missing required columns after auto-correction: {missing_cols}"
+                )
                 st.info(f"💡 Final columns: {list(df.columns)}")
-                st.warning("💡 Please ensure your file has: Name, Status, Date, Time columns (or Date/Time combined)")
+                st.warning(
+                    "💡 Please ensure your file has: Name, Status, Date, Time columns (or Date/Time combined)"
+                )
                 return None
 
             st.success(f"✅ File ready for processing with columns: {list(df.columns)}")
@@ -593,6 +653,7 @@ class TimesheetProcessor:
         except Exception as e:
             st.error(f"❌ Error loading file: {str(e)}")
             import traceback
+
             st.error(f"🔍 Details: {traceback.format_exc()}")
             return None
 
@@ -604,32 +665,45 @@ class TimesheetProcessor:
                 return None
 
             # Load file based on extension with maximum compatibility
-            if file_path.lower().endswith('.xlsx') or file_path.lower().endswith('.xls') or file_path.lower().endswith('.xlsm') or file_path.lower().endswith('.xlsb'):
-                with open(file_path, 'rb') as f:
+            if (
+                file_path.lower().endswith(".xlsx")
+                or file_path.lower().endswith(".xls")
+                or file_path.lower().endswith(".xlsm")
+                or file_path.lower().endswith(".xlsb")
+            ):
+                with open(file_path, "rb") as f:
                     df = self.load_excel_with_fallback(f, file_path)
                 if df is None:
                     return None
             elif file_path.lower().endswith(".csv"):
-                df = pd.read_csv(file_path, encoding='utf-8', encoding_errors='ignore')
+                df = pd.read_csv(file_path, encoding="utf-8", encoding_errors="ignore")
             else:
-                st.error("❌ Unsupported file format. Supported: .xlsx, .xls, .xlsm, .xlsb, .csv")
+                st.error(
+                    "❌ Unsupported file format. Supported: .xlsx, .xls, .xlsm, .xlsb, .csv"
+                )
                 return None
 
             st.success(f"✅ Successfully loaded file: {file_path}")
             st.info(f"📋 Original columns: {list(df.columns)}")
-            
+
             # Auto-detect and fix column names
             df = self.detect_and_fix_columns(df)
-            
+
             # Add any missing essential columns
             df = self.add_missing_columns(df)
 
             # Handle different file formats
-            if "Date/Time" in df.columns and ("Date" not in df.columns or "Time" not in df.columns):
-                st.info("🔄 Detected inline Date/Time format - splitting into Date and Time...")
-                split_data = df["Date/Time"].astype(str).str.split(" ", n=1, expand=True)
-                df["Date"] = split_data[0] if len(split_data.columns) > 0 else ''
-                df["Time"] = split_data[1] if len(split_data.columns) > 1 else ''
+            if "Date/Time" in df.columns and (
+                "Date" not in df.columns or "Time" not in df.columns
+            ):
+                st.info(
+                    "🔄 Detected inline Date/Time format - splitting into Date and Time..."
+                )
+                split_data = (
+                    df["Date/Time"].astype(str).str.split(" ", n=1, expand=True)
+                )
+                df["Date"] = split_data[0] if len(split_data.columns) > 0 else ""
+                df["Time"] = split_data[1] if len(split_data.columns) > 1 else ""
 
             # Check for required columns after processing
             required_cols = ["Name", "Status"]
@@ -677,23 +751,35 @@ class TimesheetProcessor:
         st.info(
             f"📊 Processing {len(df_work)} valid records from {initial_count} total records"
         )
-        
+
         # Show sample of data being processed
         if len(df_work) > 0:
-            st.info(f"📋 Sample data - Employees: {df_work['Name'].nunique()}, Date range: {df_work['Date_parsed'].min()} to {df_work['Date_parsed'].max()}")
+            st.info(
+                f"📋 Sample data - Employees: {df_work['Name'].nunique()}, Date range: {df_work['Date_parsed'].min()} to {df_work['Date_parsed'].max()}"
+            )
             # Show unique status values found
-            unique_statuses = df_work['Status'].unique()
-            st.info(f"🔍 Status values found: {', '.join([str(s) for s in unique_statuses if pd.notna(s)])}")
-            
+            unique_statuses = df_work["Status"].unique()
+            st.info(
+                f"🔍 Status values found: {', '.join([str(s) for s in unique_statuses if pd.notna(s)])}"
+            )
+
             # Count check-ins and check-outs
-            checkins = df_work[df_work["Status"].str.contains("In", case=False, na=False)]
-            checkouts = df_work[df_work["Status"].str.contains("Out", case=False, na=False)]
-            st.info(f"✅ Found {len(checkins)} check-in records and {len(checkouts)} check-out records")
-            
+            checkins = df_work[
+                df_work["Status"].str.contains("In", case=False, na=False)
+            ]
+            checkouts = df_work[
+                df_work["Status"].str.contains("Out", case=False, na=False)
+            ]
+            st.info(
+                f"✅ Found {len(checkins)} check-in records and {len(checkouts)} check-out records"
+            )
+
             # DEBUG: Show first few records for RUGANINTWALI SALEH
             debug_employee = "RUGANINTWALI SALEH"
-            if debug_employee in df_work['Name'].values:
-                debug_df = df_work[df_work['Name'] == debug_employee][['Date_parsed', 'Time_parsed', 'Status']].head(15)
+            if debug_employee in df_work["Name"].values:
+                debug_df = df_work[df_work["Name"] == debug_employee][
+                    ["Date_parsed", "Time_parsed", "Status"]
+                ].head(15)
                 st.info(f"🔍 DEBUG - First 15 records for {debug_employee}:")
                 st.dataframe(debug_df)
 
@@ -701,64 +787,70 @@ class TimesheetProcessor:
         status_text = st.empty()
 
         consolidated_rows = []
-        
+
         # Group by employee only, then pair check-ins with check-outs
         employees = df_work["Name"].unique()
         total_employees = len(employees)
-        
+
         for emp_idx, employee in enumerate(employees):
             try:
-                emp_data = df_work[df_work["Name"] == employee].sort_values(["Date_parsed", "Time_parsed"])
-                
+                emp_data = df_work[df_work["Name"] == employee].sort_values(
+                    ["Date_parsed", "Time_parsed"]
+                )
+
                 # Get all records in chronological order
-                all_records = emp_data.to_dict('records')
-                
+                all_records = emp_data.to_dict("records")
+
                 # CRITICAL: Track ALL records to ensure none are lost
                 all_record_ids = set(range(len(all_records)))
                 used_record_ids = set()
             except Exception as e:
                 if show_warnings:
-                    st.error(f"❌ {employee} - Critical error initializing data: {str(e)}")
+                    st.error(
+                        f"❌ {employee} - Critical error initializing data: {str(e)}"
+                    )
                 progress_bar.progress((emp_idx + 1) / total_employees)
-                status_text.text(f"ERROR Processing: {employee} ({emp_idx + 1}/{total_employees})")
+                status_text.text(
+                    f"ERROR Processing: {employee} ({emp_idx + 1}/{total_employees})"
+                )
                 continue
-            
+
             # First pass: Group records by date to handle multiple check-ins/outs per day
             daily_records = {}
             for idx, record in enumerate(all_records):
-                record['_record_id'] = idx  # Add tracking ID
+                record["_record_id"] = idx  # Add tracking ID
                 date_key = record["Date_parsed"]
                 if date_key not in daily_records:
-                    daily_records[date_key] = {'ins': [], 'outs': []}
-                
+                    daily_records[date_key] = {"ins": [], "outs": []}
+
                 status = record["Status"]
                 # Any status with "In" (C/In, OverTime In, etc.) is a check-in
                 if "In" in status and "Out" not in status:
-                    daily_records[date_key]['ins'].append(record)
+                    daily_records[date_key]["ins"].append(record)
                 # Any status with "Out" (C/Out, OverTime Out, etc.) is a check-out
                 elif "Out" in status:
-                    daily_records[date_key]['outs'].append(record)
-            
+                    daily_records[date_key]["outs"].append(record)
+
             # Second pass: Consolidate daily records (earliest check-in, latest check-out)
             processed_dates = set()
             orphaned_checkouts = {}  # Track check-outs that belong to previous day
-            
+
             # PRE-PROCESSING PHASE: Identify ALL orphaned checkouts BEFORE main processing
             # This ensures we find them before we process the dates they belong to
             for work_date in sorted(daily_records.keys()):
-                day_ins = daily_records[work_date]['ins']
-                day_outs = daily_records[work_date]['outs']
-                
+                day_ins = daily_records[work_date]["ins"]
+                day_outs = daily_records[work_date]["outs"]
+
                 if not day_ins and not day_outs:
                     continue
-                
+
                 # Check for orphaned checkouts (checkouts before check-ins, or checkouts without check-ins)
                 if day_outs:
                     if day_ins:
                         # We have BOTH check-ins and check-outs
                         earliest_checkin = min(day_ins, key=lambda x: x["Time_parsed"])
                         earliest_checkin_time = earliest_checkin["Time_parsed"]
-                        
+
                         # Find checkouts that happen BEFORE the earliest check-in
                         for out_record in day_outs:
                             if out_record["Time_parsed"] < earliest_checkin_time:
@@ -778,43 +870,47 @@ class TimesheetProcessor:
                                 if prev_date not in orphaned_checkouts:
                                     orphaned_checkouts[prev_date] = []
                                 orphaned_checkouts[prev_date].append(out_record)
-            
+
             # MAIN PROCESSING PHASE: Now process each date with orphaned checkouts already identified
-            
+
             for work_date in sorted(daily_records.keys()):
                 try:
                     if work_date in processed_dates:
                         continue
-                    
-                    day_ins = daily_records[work_date]['ins']
-                    day_outs = daily_records[work_date]['outs']
-                    
+
+                    day_ins = daily_records[work_date]["ins"]
+                    day_outs = daily_records[work_date]["outs"]
+
                     # Skip if no check-ins or check-outs
                     if not day_ins and not day_outs:
                         continue
                 except Exception as e:
                     if show_warnings:
-                        st.warning(f"⚠️ {employee} - Error processing date {work_date}: {str(e)}")
+                        st.warning(
+                            f"⚠️ {employee} - Error processing date {work_date}: {str(e)}"
+                        )
                     continue
-                
+
                 # Filter out checkouts that were moved to previous day's orphaned list
                 # (These were morning checkouts that belong to previous night shift)
                 valid_outs_for_today = []
-                
+
                 if day_outs:
                     # Check if any of this day's checkouts were assigned to PREVIOUS day
                     prev_date = work_date - timedelta(days=1)
                     orphaned_to_prev = set()
                     if prev_date in orphaned_checkouts:
-                        orphaned_to_prev = {rec['_record_id'] for rec in orphaned_checkouts[prev_date]}
-                    
+                        orphaned_to_prev = {
+                            rec["_record_id"] for rec in orphaned_checkouts[prev_date]
+                        }
+
                     # Keep only checkouts that were NOT moved to previous day
                     for out_record in day_outs:
-                        if out_record['_record_id'] not in orphaned_to_prev:
+                        if out_record["_record_id"] not in orphaned_to_prev:
                             valid_outs_for_today.append(out_record)
-                    
+
                     day_outs = valid_outs_for_today
-                
+
                 # Consolidate multiple check-ins: Use EARLIEST check-in
                 try:
                     if day_ins:
@@ -825,76 +921,85 @@ class TimesheetProcessor:
                         checkin_status = checkin_record["Status"]
                         has_checkin = True
                         # CRITICAL FIX: Mark the used check-in as consumed
-                        used_record_ids.add(checkin_record['_record_id'])
+                        used_record_ids.add(checkin_record["_record_id"])
                     else:
                         has_checkin = False
                 except Exception as e:
                     if show_warnings:
-                        st.warning(f"⚠️ {employee} - Error processing check-in for {work_date.strftime('%d/%m/%Y')}: {str(e)}")
+                        st.warning(
+                            f"⚠️ {employee} - Error processing check-in for {work_date.strftime('%d/%m/%Y')}: {str(e)}"
+                        )
                     has_checkin = False
                     continue
-                
+
                 # SKIP if we moved all check-outs to orphaned (they'll be used by previous day)
                 # and we have no check-ins on this day
                 if not has_checkin and not day_outs:
                     # All data for this date was moved to previous day's night shift
                     # Don't create a "Missing" entry
                     continue
-                
+
                 # Check if this is a night shift (starts at or after 16:10)
                 if has_checkin:
                     checkin_hour = checkin_time.hour + checkin_time.minute / 60
                     is_night_shift = checkin_hour >= 15.8333  # 15:50 (3:50 PM)
                 else:
                     is_night_shift = False
-                
+
                 # For night shifts, check next day for check-outs too
                 checkout_found = False
                 checkout_date = None
                 checkout_time = None
                 checkout_status = None
-                
+
                 if is_night_shift:
                     # Look for check-outs on same day AND next day
                     next_date = work_date + timedelta(days=1)
                     all_outs = day_outs.copy()
-                    
+
                     # FIRST: Check if we have orphaned check-outs from next day (morning checkouts)
                     if work_date in orphaned_checkouts:
                         all_outs.extend(orphaned_checkouts[work_date])
                         # DON'T mark as used here - wait until we actually use the checkout below
-                    
+
                     # SECOND: Add next day's check-outs if they exist
                     if next_date in daily_records:
-                        next_day_outs = daily_records[next_date]['outs']
-                        next_day_ins = daily_records[next_date]['ins']
-                        
+                        next_day_outs = daily_records[next_date]["outs"]
+                        next_day_ins = daily_records[next_date]["ins"]
+
                         for next_out in next_day_outs:
                             # Skip if already used
-                            if next_out['_record_id'] in used_record_ids:
+                            if next_out["_record_id"] in used_record_ids:
                                 continue
-                            
+
                             # Check if this check-out happens BEFORE any check-in on next day
                             if next_day_ins:
-                                earliest_next_in = min(next_day_ins, key=lambda x: x["Time_parsed"])
-                                if next_out["Time_parsed"] < earliest_next_in["Time_parsed"]:
+                                earliest_next_in = min(
+                                    next_day_ins, key=lambda x: x["Time_parsed"]
+                                )
+                                if (
+                                    next_out["Time_parsed"]
+                                    < earliest_next_in["Time_parsed"]
+                                ):
                                     all_outs.append(next_out)
                             else:
                                 # No check-ins on next day, ALL checkouts belong to current shift
                                 all_outs.append(next_out)
-                    
+
                     if all_outs:
                         # For night shift: Use LATEST check-out (could be next day)
-                        checkout_record = max(all_outs, key=lambda x: (x["Date_parsed"], x["Time_parsed"]))
+                        checkout_record = max(
+                            all_outs, key=lambda x: (x["Date_parsed"], x["Time_parsed"])
+                        )
                         checkout_date = checkout_record["Date_parsed"]
                         checkout_time = checkout_record["Time_parsed"]
                         # Use the actual status from the record (C/Out, OverTime Out, etc.)
                         checkout_status = checkout_record["Status"]
                         checkout_found = True
-                        
+
                         # CRITICAL FIX: Mark the used checkout as consumed
-                        used_record_ids.add(checkout_record['_record_id'])
-                        
+                        used_record_ids.add(checkout_record["_record_id"])
+
                         # DON'T mark next day as processed - we only marked the specific checkout record as used
                         # This allows next day's check-in to still be processed
                 else:
@@ -907,8 +1012,8 @@ class TimesheetProcessor:
                         checkout_status = checkout_record["Status"]
                         checkout_found = True
                         # CRITICAL FIX: Mark the used checkout as consumed
-                        used_record_ids.add(checkout_record['_record_id'])
-                
+                        used_record_ids.add(checkout_record["_record_id"])
+
                 # Process the record - handle both complete pairs and incomplete records
                 # We keep EVERY check-in, even without checkout (user requirement: no data skipped)
                 if not checkout_found:
@@ -917,27 +1022,29 @@ class TimesheetProcessor:
                     checkout_time = None
                     checkout_status = "No Checkout"
                     if show_warnings:
-                        st.info(f"ℹ️ {employee} - {checkin_date.strftime('%d-%b')}: Check-in at {checkin_time.strftime('%H:%M')} without checkout - record kept")
-                
+                        st.info(
+                            f"ℹ️ {employee} - {checkin_date.strftime('%d-%b')}: Check-in at {checkin_time.strftime('%H:%M')} without checkout - record kept"
+                        )
+
                 # Now process the record - calculate hours if we have both times
                 try:
                     start_time = checkin_time
                     end_time = checkout_time
-                    
+
                     if end_time is not None:
                         # Have both times - calculate normally
                         shift_type = self.determine_shift_type(start_time)
-                        
+
                         # Calculate total hours (handle midnight crossing)
                         total_hours = self.calculate_total_work_hours(
                             start_time, end_time, shift_type, work_date
                         )
-                        
+
                         # Calculate overtime hours
                         overtime_hours = self.calculate_overtime_hours(
                             start_time, end_time, shift_type, work_date
                         )
-                        
+
                         # Build entry details
                         entry_details = f"{checkin_date.strftime('%d/%m/%Y')} {start_time.strftime('%H:%M:%S')}({checkin_status}) → {checkout_date.strftime('%d/%m/%Y')} {end_time.strftime('%H:%M:%S')}({checkout_status})"
                     else:
@@ -948,10 +1055,12 @@ class TimesheetProcessor:
                         entry_details = f"{checkin_date.strftime('%d/%m/%Y')} {start_time.strftime('%H:%M:%S')}({checkin_status}) → No Checkout"
                 except Exception as e:
                     if show_warnings:
-                        st.warning(f"⚠️ {employee} - Error calculating hours for {work_date.strftime('%d/%m/%Y')}: {str(e)}")
+                        st.warning(
+                            f"⚠️ {employee} - Error calculating hours for {work_date.strftime('%d/%m/%Y')}: {str(e)}"
+                        )
                     # Skip this record if calculation fails
                     continue
-                
+
                 # Create consolidated row
                 try:
                     consolidated_row = {
@@ -960,45 +1069,57 @@ class TimesheetProcessor:
                         "Check In Status": checkin_status,
                         "Start Time": start_time.strftime("%H:%M:%S"),
                         "Check Out Status": checkout_status,
-                        "End Time": end_time.strftime("%H:%M:%S") if end_time is not None else "N/A",
+                        "End Time": (
+                            end_time.strftime("%H:%M:%S")
+                            if end_time is not None
+                            else "N/A"
+                        ),
                         "Total Hours": total_hours,
-                        "Overtime Hours": self.format_hours_to_time(overtime_hours) if overtime_hours > 0 else "00:00:00",
+                        "Overtime Hours": (
+                            self.format_hours_to_time(overtime_hours)
+                            if overtime_hours > 0
+                            else "00:00:00"
+                        ),
                         "Overtime Hours (Decimal)": overtime_hours,
-                        "Original Entries": 2 if end_time is not None else 1,  # Check-in + Check-out (or just check-in)
+                        "Original Entries": (
+                            2 if end_time is not None else 1
+                        ),  # Check-in + Check-out (or just check-in)
                         "Entry Details": entry_details,
                     }
-                    
+
                     consolidated_rows.append(consolidated_row)
                 except Exception as e:
                     if show_warnings:
-                        st.warning(f"⚠️ {employee} - Error creating consolidated row for {work_date.strftime('%d/%m/%Y')}: {str(e)}")
+                        st.warning(
+                            f"⚠️ {employee} - Error creating consolidated row for {work_date.strftime('%d/%m/%Y')}: {str(e)}"
+                        )
                     continue
-                
+
                 # Mark records as used
                 if has_checkin and day_ins:
                     for rec in day_ins:
-                        used_record_ids.add(rec['_record_id'])
+                        used_record_ids.add(rec["_record_id"])
                 if checkout_found and day_outs:
                     for rec in day_outs:
-                        used_record_ids.add(rec['_record_id'])
+                        used_record_ids.add(rec["_record_id"])
                 # Mark orphaned checkouts as used
                 if work_date in orphaned_checkouts:
                     for rec in orphaned_checkouts[work_date]:
-                        used_record_ids.add(rec['_record_id'])
-            
+                        used_record_ids.add(rec["_record_id"])
+
             # CRITICAL: Process ALL unused orphaned checkouts for this employee
             # This ensures 100% data preservation - no checkout is lost
             for orphan_date, orphan_checkouts in orphaned_checkouts.items():
                 for checkout_rec in orphan_checkouts:
-                    if checkout_rec['_record_id'] not in used_record_ids:
+                    if checkout_rec["_record_id"] not in used_record_ids:
                         # This checkout was never paired - add it as orphaned entry
                         try:
                             checkout_time = checkout_rec["Time_parsed"]
                             checkout_date = checkout_rec["Date_parsed"]
                             checkout_status = checkout_rec["Status"]
-                            
+
                             entry_details = f"No Check-in → {checkout_date.strftime('%d/%m/%Y')} {checkout_time.strftime('%H:%M:%S')}({checkout_status})"
-                            
+
                             orphaned_row = {
                                 "Name": employee,
                                 "Date": checkout_date.strftime("%d-%b-%Y"),
@@ -1012,23 +1133,29 @@ class TimesheetProcessor:
                                 "Original Entries": 1,  # Only checkout
                                 "Entry Details": entry_details,
                             }
-                            
+
                             consolidated_rows.append(orphaned_row)
-                            used_record_ids.add(checkout_rec['_record_id'])
+                            used_record_ids.add(checkout_rec["_record_id"])
                         except Exception as e:
                             if show_warnings:
-                                st.warning(f"⚠️ {employee} - Error processing orphaned checkout: {str(e)}")
-            
+                                st.warning(
+                                    f"⚠️ {employee} - Error processing orphaned checkout: {str(e)}"
+                                )
+
             # Update progress
             progress_bar.progress((emp_idx + 1) / total_employees)
-            status_text.text(f"Processing: {employee} ({emp_idx + 1}/{total_employees})")
+            status_text.text(
+                f"Processing: {employee} ({emp_idx + 1}/{total_employees})"
+            )
         progress_bar.empty()
         status_text.empty()
 
         # Safety check: Ensure we have data to process
         if not consolidated_rows:
             st.error("❌ No valid check-in/check-out pairs found in the data")
-            st.info("💡 Please ensure your data has complete pairs with both check-in and check-out times")
+            st.info(
+                "💡 Please ensure your data has complete pairs with both check-in and check-out times"
+            )
             return pd.DataFrame()
 
         try:
@@ -1036,120 +1163,139 @@ class TimesheetProcessor:
         except Exception as e:
             st.error(f"❌ Error creating consolidated DataFrame: {str(e)}")
             return pd.DataFrame()
-        
+
         # Check if DataFrame is empty or missing required columns
         if consolidated_df.empty:
-            st.warning("⚠️ No records were consolidated. Please check if the data has valid check-in/check-out pairs.")
+            st.warning(
+                "⚠️ No records were consolidated. Please check if the data has valid check-in/check-out pairs."
+            )
             return consolidated_df
-        
-        if "Name" not in consolidated_df.columns or "Date" not in consolidated_df.columns:
-            st.error(f"❌ Missing required columns after consolidation. Available columns: {consolidated_df.columns.tolist()}")
+
+        if (
+            "Name" not in consolidated_df.columns
+            or "Date" not in consolidated_df.columns
+        ):
+            st.error(
+                f"❌ Missing required columns after consolidation. Available columns: {consolidated_df.columns.tolist()}"
+            )
             return consolidated_df
-        
+
         # Sort by Name and Date (chronologically, not alphabetically)
         # Convert Date string to datetime for proper sorting
-        consolidated_df['_sort_date'] = pd.to_datetime(consolidated_df['Date'], format='%d-%b-%Y')
+        consolidated_df["_sort_date"] = pd.to_datetime(
+            consolidated_df["Date"], format="%d-%b-%Y"
+        )
         consolidated_df = consolidated_df.sort_values(["Name", "_sort_date"])
-        consolidated_df = consolidated_df.drop(columns=['_sort_date'])
+        consolidated_df = consolidated_df.drop(columns=["_sort_date"])
 
         # Data Quality Report
         st.markdown("---")
         st.subheader("📋 Data Quality Report")
-        
+
         col1, col2 = st.columns(2)
-        
+
         total_records = len(consolidated_df)
-        
+
         with col1:
             st.metric("✅ Complete Pairs Processed", total_records)
-        
+
         with col2:
-            st.metric("📊 Data Quality", "100%", delta="All Complete", delta_color="normal")
-        
-        st.success("✅ **Perfect Data Quality:** All records have complete check-in/check-out pairs!")
+            st.metric(
+                "📊 Data Quality", "100%", delta="All Complete", delta_color="normal"
+            )
+
+        st.success(
+            "✅ **Perfect Data Quality:** All records have complete check-in/check-out pairs!"
+        )
 
         st.success(
             f"✅ Successfully processed {len(consolidated_df)} complete records!"
         )
         return consolidated_df
-    
-    def fill_all_employee_dates(self, consolidated_df: pd.DataFrame, source_df: pd.DataFrame) -> pd.DataFrame:
+
+    def fill_all_employee_dates(
+        self, consolidated_df: pd.DataFrame, source_df: pd.DataFrame
+    ) -> pd.DataFrame:
         """Fill in all dates that exist in source file for each employee
-        
+
         Args:
             consolidated_df: Consolidated dataframe with processed records
             source_df: Original source dataframe with Date_parsed column
-            
+
         Returns:
             DataFrame with all dates filled for each employee
         """
         if consolidated_df.empty or source_df.empty:
             return consolidated_df
-        
+
         # Get all unique dates from source file and normalize to datetime64[ns]
-        all_dates_in_file = sorted(source_df['Date_parsed'].dropna().unique())
-        
+        all_dates_in_file = sorted(source_df["Date_parsed"].dropna().unique())
+
         if len(all_dates_in_file) == 0:
             return consolidated_df
-        
+
         # Ensure dates are pandas Timestamps (datetime64[ns])
         all_dates_in_file = [pd.Timestamp(d) for d in all_dates_in_file]
-        
+
         # Get all unique employees from consolidated data
-        all_employees = consolidated_df['Name'].unique()
-        
+        all_employees = consolidated_df["Name"].unique()
+
         # Convert Date column to datetime for merging - ensure it's datetime64[ns]
-        consolidated_df['Date_dt'] = pd.to_datetime(consolidated_df['Date'], format='%d-%b-%Y', errors='coerce')
-        
+        consolidated_df["Date_dt"] = pd.to_datetime(
+            consolidated_df["Date"], format="%d-%b-%Y", errors="coerce"
+        )
+
         # Create all combinations of employees and dates from source file
         employee_date_combinations = []
         for employee in all_employees:
             for date in all_dates_in_file:
-                employee_date_combinations.append({
-                    'Name': employee,
-                    'Date_dt': pd.Timestamp(date)  # Ensure it's pandas Timestamp
-                })
-        
+                employee_date_combinations.append(
+                    {
+                        "Name": employee,
+                        "Date_dt": pd.Timestamp(date),  # Ensure it's pandas Timestamp
+                    }
+                )
+
         all_combinations_df = pd.DataFrame(employee_date_combinations)
-        
+
         # Ensure both Date_dt columns are the same dtype before merging
-        all_combinations_df['Date_dt'] = pd.to_datetime(all_combinations_df['Date_dt'])
-        consolidated_df['Date_dt'] = pd.to_datetime(consolidated_df['Date_dt'])
-        
+        all_combinations_df["Date_dt"] = pd.to_datetime(all_combinations_df["Date_dt"])
+        consolidated_df["Date_dt"] = pd.to_datetime(consolidated_df["Date_dt"])
+
         # Merge with existing consolidated data
         df_complete = all_combinations_df.merge(
-            consolidated_df,
-            on=['Name', 'Date_dt'],
-            how='left'
+            consolidated_df, on=["Name", "Date_dt"], how="left"
         )
-        
+
         # Fill missing values for dates where employee has no record
-        df_complete['Date'] = df_complete['Date_dt'].dt.strftime('%d-%b-%Y')
-        
+        df_complete["Date"] = df_complete["Date_dt"].dt.strftime("%d-%b-%Y")
+
         # Identify rows with no attendance data
-        missing_mask = df_complete['Check In Status'].isna()
-        
+        missing_mask = df_complete["Check In Status"].isna()
+
         # Fill missing records with "No Record"
-        df_complete.loc[missing_mask, 'Check In Status'] = 'No Record'
-        df_complete.loc[missing_mask, 'Start Time'] = 'No Record'
-        df_complete.loc[missing_mask, 'Check Out Status'] = 'No Record'
-        df_complete.loc[missing_mask, 'End Time'] = 'No Record'
-        df_complete.loc[missing_mask, 'Total Hours'] = 0.0
-        df_complete.loc[missing_mask, 'Overtime Hours'] = '00:00:00'
-        df_complete.loc[missing_mask, 'Overtime Hours (Decimal)'] = 0.0
-        df_complete.loc[missing_mask, 'Original Entries'] = 0
-        df_complete.loc[missing_mask, 'Entry Details'] = 'No attendance record for this date'
-        df_complete.loc[missing_mask, '_has_missing_data'] = True
-        
+        df_complete.loc[missing_mask, "Check In Status"] = "No Record"
+        df_complete.loc[missing_mask, "Start Time"] = "No Record"
+        df_complete.loc[missing_mask, "Check Out Status"] = "No Record"
+        df_complete.loc[missing_mask, "End Time"] = "No Record"
+        df_complete.loc[missing_mask, "Total Hours"] = 0.0
+        df_complete.loc[missing_mask, "Overtime Hours"] = "00:00:00"
+        df_complete.loc[missing_mask, "Overtime Hours (Decimal)"] = 0.0
+        df_complete.loc[missing_mask, "Original Entries"] = 0
+        df_complete.loc[missing_mask, "Entry Details"] = (
+            "No attendance record for this date"
+        )
+        df_complete.loc[missing_mask, "_has_missing_data"] = True
+
         # Drop temporary datetime column
-        df_complete = df_complete.drop('Date_dt', axis=1)
-        
+        df_complete = df_complete.drop("Date_dt", axis=1)
+
         # Sort by Name and Date
-        df_complete = df_complete.sort_values(['Name', 'Date'])
-        
+        df_complete = df_complete.sort_values(["Name", "Date"])
+
         # Reset index
         df_complete = df_complete.reset_index(drop=True)
-        
+
         return df_complete
 
 
@@ -1666,21 +1812,30 @@ def _cli_process_attendance_file(path: str):
         status_text.empty()
 
         consolidated_df = pd.DataFrame(consolidated_rows)
-        
+
         # Check if DataFrame is empty or missing required columns
         if consolidated_df.empty:
-            st.warning("⚠️ No records were consolidated. Please check if the data has valid check-in/check-out pairs.")
+            st.warning(
+                "⚠️ No records were consolidated. Please check if the data has valid check-in/check-out pairs."
+            )
             return consolidated_df
-        
-        if "Name" not in consolidated_df.columns or "Date" not in consolidated_df.columns:
-            st.error(f"❌ Missing required columns after consolidation. Available columns: {consolidated_df.columns.tolist()}")
+
+        if (
+            "Name" not in consolidated_df.columns
+            or "Date" not in consolidated_df.columns
+        ):
+            st.error(
+                f"❌ Missing required columns after consolidation. Available columns: {consolidated_df.columns.tolist()}"
+            )
             return consolidated_df
-        
+
         # Sort by Name and Date (chronologically, not alphabetically)
         # Convert Date string to datetime for proper sorting
-        consolidated_df['_sort_date'] = pd.to_datetime(consolidated_df['Date'], format='%d-%b-%Y')
+        consolidated_df["_sort_date"] = pd.to_datetime(
+            consolidated_df["Date"], format="%d-%b-%Y"
+        )
         consolidated_df = consolidated_df.sort_values(["Name", "_sort_date"])
-        consolidated_df = consolidated_df.drop(columns=['_sort_date'])
+        consolidated_df = consolidated_df.drop(columns=["_sort_date"])
 
         st.success(
             f"✅ Successfully processed {len(consolidated_df)} actual work records!"
@@ -2184,7 +2339,7 @@ def create_dashboard():
     </div>
     <div class="header-container">
         <div class="title-section">
-            <h1 class="main-header">🧹 Timesheet Consolidator Dashboard</h1>
+            <h1 class="main-header">📊 Attendance Statistics Dashboard</h1>
         </div>
     </div>
     """,
@@ -2206,10 +2361,11 @@ def create_dashboard():
     processor = TimesheetProcessor()
 
     # Create main navigation tabs
-    tab1, tab2, tab3, tab4, tab_ot, tab5, tab6, tab7, tab8, tab9 = st.tabs(
+    tab1, tab2, tab_stats, tab3, tab4, tab_ot, tab5, tab6, tab7, tab8, tab9 = st.tabs(
         [
             "📊 Timesheet Processing",
             "🔄 Attendance Consolidation",
+            "📈 Attendance Statistics",
             "🧠 Advanced Analysis",
             "🔍 Filter & Export by Date/Name",
             "💰 OT Consolidation (1.5x)",
@@ -2405,108 +2561,125 @@ def create_dashboard():
 
             # Display consolidated data
             st.subheader("📊 Consolidated Timesheet Data")
-            
+
             # Add date filter
             st.markdown("---")
             col_filter1, col_filter2, col_filter3 = st.columns([2, 2, 1])
-            
+
             with col_filter1:
                 filter_option = st.selectbox(
                     "🔍 Filter Data",
-                    ["Show All Dates", "Filter by Specific Date", "Filter by Date Range"],
-                    key="date_filter_option"
+                    [
+                        "Show All Dates",
+                        "Filter by Specific Date",
+                        "Filter by Date Range",
+                    ],
+                    key="date_filter_option",
                 )
-            
+
             # Create filtered data based on selection
             filtered_data = consolidated_data.copy()
-            
+
             if filter_option == "Filter by Specific Date":
                 # Parse dates from the data
                 try:
-                    date_list = pd.to_datetime(consolidated_data['Date'], format='%d-%b-%Y').dt.date.unique()
+                    date_list = pd.to_datetime(
+                        consolidated_data["Date"], format="%d-%b-%Y"
+                    ).dt.date.unique()
                     date_list = sorted(date_list)
-                    
+
                     with col_filter2:
                         selected_date = st.selectbox(
                             "📅 Select Date",
                             date_list,
-                            format_func=lambda x: x.strftime('%d-%b-%Y'),
-                            key="single_date_filter"
+                            format_func=lambda x: x.strftime("%d-%b-%Y"),
+                            key="single_date_filter",
                         )
-                    
+
                     # Filter data
                     filtered_data = consolidated_data[
-                        pd.to_datetime(consolidated_data['Date'], format='%d-%b-%Y').dt.date == selected_date
+                        pd.to_datetime(
+                            consolidated_data["Date"], format="%d-%b-%Y"
+                        ).dt.date
+                        == selected_date
                     ]
-                    
+
                     with col_filter3:
                         st.metric("👥 Employees", len(filtered_data))
-                        
+
                 except Exception as e:
                     st.warning(f"⚠️ Could not parse dates: {str(e)}")
-            
+
             elif filter_option == "Filter by Date Range":
                 try:
-                    date_list = pd.to_datetime(consolidated_data['Date'], format='%d-%b-%Y').dt.date.unique()
+                    date_list = pd.to_datetime(
+                        consolidated_data["Date"], format="%d-%b-%Y"
+                    ).dt.date.unique()
                     date_list = sorted(date_list)
-                    
+
                     col_range1, col_range2 = st.columns(2)
-                    
+
                     with col_range1:
                         start_date = st.selectbox(
                             "📅 From Date",
                             date_list,
-                            format_func=lambda x: x.strftime('%d-%b-%Y'),
-                            key="start_date_filter"
+                            format_func=lambda x: x.strftime("%d-%b-%Y"),
+                            key="start_date_filter",
                         )
-                    
+
                     with col_range2:
                         end_date = st.selectbox(
                             "📅 To Date",
                             [d for d in date_list if d >= start_date],
                             index=len([d for d in date_list if d >= start_date]) - 1,
-                            format_func=lambda x: x.strftime('%d-%b-%Y'),
-                            key="end_date_filter"
+                            format_func=lambda x: x.strftime("%d-%b-%Y"),
+                            key="end_date_filter",
                         )
-                    
+
                     # Filter data
-                    date_column = pd.to_datetime(consolidated_data['Date'], format='%d-%b-%Y').dt.date
+                    date_column = pd.to_datetime(
+                        consolidated_data["Date"], format="%d-%b-%Y"
+                    ).dt.date
                     filtered_data = consolidated_data[
                         (date_column >= start_date) & (date_column <= end_date)
                     ]
-                    
+
                     with col_filter3:
                         st.metric("👥 Employees", len(filtered_data))
-                        
+
                 except Exception as e:
                     st.warning(f"⚠️ Could not parse dates: {str(e)}")
-            
+
             else:
                 # Show all dates
                 with col_filter3:
                     st.metric("📋 Total Records", len(filtered_data))
-            
+
             st.markdown("---")
 
             # Create a display version of the filtered data
             display_data = filtered_data.copy()
-            
+
             # Replace data with "Missing Data" for rows with missing/estimated data
-            if '_has_missing_data' in display_data.columns:
+            if "_has_missing_data" in display_data.columns:
                 for idx, row in display_data.iterrows():
-                    if row.get('_has_missing_data', False):
+                    if row.get("_has_missing_data", False):
                         # Replace all data columns with "Missing Data"
                         for col in display_data.columns:
-                            if col not in ['Name', 'Date', '_has_missing_data']:
+                            if col not in ["Name", "Date", "_has_missing_data"]:
                                 display_data.at[idx, col] = "Missing Data"
-            
+
             # Function to highlight rows with missing data
             def highlight_missing_rows(row):
                 """Highlight rows with missing data in red"""
-                if '_has_missing_data' in row.index and row.get('_has_missing_data', False):
+                if "_has_missing_data" in row.index and row.get(
+                    "_has_missing_data", False
+                ):
                     # Red background for rows with missing data
-                    return ['background-color: #ffcccc; color: #8b0000; font-weight: bold; text-align: center'] * len(row)
-                return [''] * len(row)
+                    return [
+                        "background-color: #ffcccc; color: #8b0000; font-weight: bold; text-align: center"
+                    ] * len(row)
+                return [""] * len(row)
 
             # Select columns that actually exist in the dataframe
             available_columns = display_data.columns.tolist()
@@ -2527,20 +2700,28 @@ def create_dashboard():
 
             if display_columns:
                 # Apply styling and display (exclude internal flag column)
-                styled_df = display_data[display_columns].style.apply(highlight_missing_rows, axis=1)
+                styled_df = display_data[display_columns].style.apply(
+                    highlight_missing_rows, axis=1
+                )
                 st.dataframe(styled_df, use_container_width=True, height=500)
             else:
                 # Fallback: show all columns except internal flag
-                cols_to_show = [col for col in available_columns if col != '_has_missing_data']
-                styled_df = display_data[cols_to_show].style.apply(highlight_missing_rows, axis=1)
+                cols_to_show = [
+                    col for col in available_columns if col != "_has_missing_data"
+                ]
+                styled_df = display_data[cols_to_show].style.apply(
+                    highlight_missing_rows, axis=1
+                )
                 st.dataframe(styled_df, use_container_width=True, height=500)
-            
+
             # Show legend for color coding
-            st.markdown("""
+            st.markdown(
+                """
             **Legend:**
             - 🟢 **Normal rows**: Complete check-in and check-out data
             - 🔴 **Red highlighted rows**: Shows "Missing Data" for incomplete records (estimated check-in or check-out)
-            """)
+            """
+            )
 
             # Show calculation summary
             st.info(
@@ -2784,7 +2965,7 @@ def create_dashboard():
                     consolidated_data[display_columns].to_excel(
                         writer, sheet_name="Overal", index=False
                     )
-                    
+
                     # Add AutoFilter to Overal sheet for easy filtering
                     overal_sheet = writer.sheets["Overal"]
                     overal_sheet.auto_filter.ref = overal_sheet.dimensions
@@ -2798,25 +2979,23 @@ def create_dashboard():
                     ):
                         # Create consolidated summary - group by employee only (not by month)
                         temp_df = consolidated_data.copy()
-                        
+
                         # Build aggregation based on available columns
                         agg_dict = {
                             "Date": "count",  # Count of working days
                         }
-                        
+
                         if "Total Hours" in temp_df.columns:
                             agg_dict["Total Hours"] = "sum"
-                        
+
                         if "Overtime Hours (Decimal)" in temp_df.columns:
                             agg_dict["Overtime Hours (Decimal)"] = "sum"
-                        
+
                         # Group by Name only (not by month) - ONE row per employee
                         consolidated_summary = (
-                            temp_df.groupby("Name")
-                            .agg(agg_dict)
-                            .reset_index()
+                            temp_df.groupby("Name").agg(agg_dict).reset_index()
                         )
-                        
+
                         # Rename columns
                         col_mapping = {
                             "Name": "EMPLOYEE NAME",
@@ -2825,35 +3004,47 @@ def create_dashboard():
                         if "Total Hours" in agg_dict:
                             col_mapping["Total Hours"] = "Total Hours Worked"
                         if "Overtime Hours (Decimal)" in agg_dict:
-                            col_mapping["Overtime Hours (Decimal)"] = "Total Overtime Hours"
-                        
+                            col_mapping["Overtime Hours (Decimal)"] = (
+                                "Total Overtime Hours"
+                            )
+
                         consolidated_summary = consolidated_summary.rename(
                             columns=col_mapping
                         )
-                        
+
                         # Round hours to 2 decimal places
                         if "Total Hours Worked" in consolidated_summary.columns:
-                            consolidated_summary["Total Hours Worked"] = consolidated_summary["Total Hours Worked"].round(2)
+                            consolidated_summary["Total Hours Worked"] = (
+                                consolidated_summary["Total Hours Worked"].round(2)
+                            )
                         if "Total Overtime Hours" in consolidated_summary.columns:
-                            consolidated_summary["Total Overtime Hours"] = consolidated_summary["Total Overtime Hours"].round(2)
-                        
+                            consolidated_summary["Total Overtime Hours"] = (
+                                consolidated_summary["Total Overtime Hours"].round(2)
+                            )
+
                         # Add SN column
                         consolidated_summary.insert(
                             0, "SN", range(1, len(consolidated_summary) + 1)
                         )
-                        
+
                         # Sort by employee name
-                        consolidated_summary = consolidated_summary.sort_values("EMPLOYEE NAME").reset_index(drop=True)
+                        consolidated_summary = consolidated_summary.sort_values(
+                            "EMPLOYEE NAME"
+                        ).reset_index(drop=True)
                         # Update SN after sorting
-                        consolidated_summary["SN"] = range(1, len(consolidated_summary) + 1)
+                        consolidated_summary["SN"] = range(
+                            1, len(consolidated_summary) + 1
+                        )
 
                         consolidated_summary.to_excel(
                             writer, sheet_name="Consolidated", index=False
                         )
-                        
+
                         # Add AutoFilter to Consolidated sheet for easy filtering
                         consolidated_sheet = writer.sheets["Consolidated"]
-                        consolidated_sheet.auto_filter.ref = consolidated_sheet.dimensions
+                        consolidated_sheet.auto_filter.ref = (
+                            consolidated_sheet.dimensions
+                        )
                         # Freeze the header row
                         consolidated_sheet.freeze_panes = "A2"
                     else:
@@ -2978,24 +3169,37 @@ def create_dashboard():
         )
 
         uploaded_att = st.file_uploader(
-            "Upload Attendance File", type=["csv", "xlsx", "xls", "xlsm", "xlsb"], key="attendance_upload"
+            "Upload Attendance File",
+            type=["csv", "xlsx", "xls", "xlsm", "xlsb"],
+            key="attendance_upload",
         )
 
         if uploaded_att:
             try:
                 # Use robust loader with auto-correction
                 processor = TimesheetProcessor()
-                if uploaded_att.name.lower().endswith('.xlsx') or uploaded_att.name.lower().endswith('.xls') or uploaded_att.name.lower().endswith('.xlsm') or uploaded_att.name.lower().endswith('.xlsb'):
-                    df_att = processor.load_excel_with_fallback(uploaded_att, uploaded_att.name)
+                if (
+                    uploaded_att.name.lower().endswith(".xlsx")
+                    or uploaded_att.name.lower().endswith(".xls")
+                    or uploaded_att.name.lower().endswith(".xlsm")
+                    or uploaded_att.name.lower().endswith(".xlsb")
+                ):
+                    df_att = processor.load_excel_with_fallback(
+                        uploaded_att, uploaded_att.name
+                    )
                 else:
-                    df_att = pd.read_csv(uploaded_att, encoding='utf-8', encoding_errors='ignore')
-                
+                    df_att = pd.read_csv(
+                        uploaded_att, encoding="utf-8", encoding_errors="ignore"
+                    )
+
                 if df_att is None:
                     st.error("❌ Could not load the file")
                 else:
                     # Auto-detect and fix column names
                     df_att = processor.detect_and_fix_columns(df_att)
-                    st.success(f"✅ Loaded {len(df_att)} records from {uploaded_att.name}")
+                    st.success(
+                        f"✅ Loaded {len(df_att)} records from {uploaded_att.name}"
+                    )
 
                 with st.expander("📋 Preview Data"):
                     st.dataframe(df_att.head(20), use_container_width=True)
@@ -3129,6 +3333,609 @@ def create_dashboard():
                             )
             except Exception as e:
                 st.error(f"❌ Error: {e}")
+
+    # Attendance Statistics Tab
+    with tab_stats:
+        st.markdown("## 📈 Attendance Statistics & Top 10 Rankings")
+        st.info(
+            "📌 Upload attendance files to generate Top 10 rankings for Overtime, Weekend Work, and Daily Attendance"
+        )
+
+        # Import attendance analyzer functions
+        try:
+            from attendance_analyzer import (
+                load_attendance_file,
+                calculate_all_metrics,
+                get_top_10_metrics,
+                create_comparison_chart,
+                create_individual_metric_chart,
+            )
+
+            ATTENDANCE_ANALYZER_AVAILABLE = True
+        except ImportError:
+            ATTENDANCE_ANALYZER_AVAILABLE = False
+            st.warning(
+                "⚠️ Attendance analyzer module not found. Please ensure attendance_analyzer.py is in the project folder."
+            )
+
+        if ATTENDANCE_ANALYZER_AVAILABLE:
+            uploaded_stats = st.file_uploader(
+                "Upload Attendance File for Statistics",
+                type=["xlsx", "xls"],
+                key="attendance_stats_upload",
+                help="Upload Office Attendance fingerprint or Peat Office Attendance file",
+            )
+
+            if uploaded_stats:
+                try:
+                    # Save uploaded file temporarily
+                    temp_file = f"temp_{uploaded_stats.name}"
+                    with open(temp_file, "wb") as f:
+                        f.write(uploaded_stats.getbuffer())
+
+                    # Load and process data
+                    with st.spinner("🔄 Processing attendance data..."):
+                        df_stats = load_attendance_file(temp_file)
+
+                        if df_stats is not None:
+                            st.success(
+                                f"✅ Successfully loaded {len(df_stats):,} attendance records"
+                            )
+
+                            # Calculate metrics
+                            metrics = calculate_all_metrics(df_stats)
+                            top_10 = get_top_10_metrics(metrics)
+
+                            # Display summary statistics
+                            st.markdown("---")
+                            st.subheader("📈 Summary Statistics")
+
+                            col1, col2, col3, col4 = st.columns(4)
+
+                            with col1:
+                                st.metric(
+                                    "Total Employees",
+                                    f"{len(metrics):,}",
+                                    help="Number of unique employees in the data",
+                                )
+
+                            with col2:
+                                st.metric(
+                                    "Total Records",
+                                    f"{len(df_stats):,}",
+                                    help="Total attendance records processed",
+                                )
+
+                            with col3:
+                                total_ot = metrics["TotalOvertimeHours"].sum()
+                                st.metric(
+                                    "Total Overtime Hours",
+                                    f"{total_ot:,.1f}",
+                                    help="Sum of all overtime hours",
+                                )
+
+                            with col4:
+                                total_weekend = metrics["WeekendDaysWorked"].sum()
+                                st.metric(
+                                    "Total Weekend Days",
+                                    f"{int(total_weekend):,}",
+                                    help="Total days worked on weekends",
+                                )
+
+                            # Main comparison chart
+                            st.markdown("---")
+                            st.subheader("📊 Top 10 Comparison Chart")
+                            comparison_fig = create_comparison_chart(top_10)
+                            st.plotly_chart(comparison_fig, use_container_width=True)
+
+                            # Individual metric tabs
+                            st.markdown("---")
+                            st.subheader("🏆 Detailed Top 10 Rankings")
+
+                            tab_ot, tab_weekend, tab_attendance, tab_records = st.tabs(
+                                [
+                                    "⏰ Overtime Hours",
+                                    "🌅 Weekend Work",
+                                    "📅 Daily Attendance",
+                                    "📊 Total Records",
+                                ]
+                            )
+
+                            with tab_ot:
+                                col_left, col_right = st.columns([2, 1])
+
+                                with col_left:
+                                    fig_ot = create_individual_metric_chart(
+                                        top_10["overtime_hours"],
+                                        "Overtime Hours",
+                                        "TotalOvertimeHours",
+                                        "🏆 Top 10 Employees by Overtime Hours",
+                                        "#FF6B6B",
+                                    )
+                                    st.plotly_chart(fig_ot, use_container_width=True)
+
+                                with col_right:
+                                    st.markdown("### 📋 Rankings")
+                                    df_display = top_10["overtime_hours"].copy()
+                                    df_display["Rank"] = range(1, len(df_display) + 1)
+                                    df_display = df_display[
+                                        [
+                                            "Rank",
+                                            "Name",
+                                            "TotalOvertimeHours",
+                                            "OvertimeDays",
+                                        ]
+                                    ]
+                                    df_display["TotalOvertimeHours"] = df_display[
+                                        "TotalOvertimeHours"
+                                    ].round(1)
+                                    st.dataframe(
+                                        df_display,
+                                        use_container_width=True,
+                                        hide_index=True,
+                                    )
+
+                            with tab_weekend:
+                                col_left, col_right = st.columns([2, 1])
+
+                                with col_left:
+                                    fig_weekend = create_individual_metric_chart(
+                                        top_10["weekend_work"],
+                                        "Weekend Days Worked",
+                                        "WeekendDaysWorked",
+                                        "🌅 Top 10 Weekend Workers",
+                                        "#4ECDC4",
+                                    )
+                                    st.plotly_chart(
+                                        fig_weekend, use_container_width=True
+                                    )
+
+                                with col_right:
+                                    st.markdown("### 📋 Rankings")
+                                    df_display = top_10["weekend_work"].copy()
+                                    df_display["Rank"] = range(1, len(df_display) + 1)
+                                    df_display = df_display[
+                                        [
+                                            "Rank",
+                                            "Name",
+                                            "WeekendDaysWorked",
+                                            "TotalDaysAttended",
+                                        ]
+                                    ]
+                                    st.dataframe(
+                                        df_display,
+                                        use_container_width=True,
+                                        hide_index=True,
+                                    )
+
+                            with tab_attendance:
+                                col_left, col_right = st.columns([2, 1])
+
+                                with col_left:
+                                    fig_attendance = create_individual_metric_chart(
+                                        top_10["daily_attendance"],
+                                        "Total Days Attended",
+                                        "TotalDaysAttended",
+                                        "📅 Top 10 by Daily Attendance",
+                                        "#95E1D3",
+                                    )
+                                    st.plotly_chart(
+                                        fig_attendance, use_container_width=True
+                                    )
+
+                                with col_right:
+                                    st.markdown("### 📋 Rankings")
+                                    df_display = top_10["daily_attendance"].copy()
+                                    df_display["Rank"] = range(1, len(df_display) + 1)
+                                    df_display = df_display[
+                                        [
+                                            "Rank",
+                                            "Name",
+                                            "TotalDaysAttended",
+                                            "TotalRecords",
+                                        ]
+                                    ]
+                                    st.dataframe(
+                                        df_display,
+                                        use_container_width=True,
+                                        hide_index=True,
+                                    )
+
+                            with tab_records:
+                                col_left, col_right = st.columns([2, 1])
+
+                                with col_left:
+                                    fig_records = create_individual_metric_chart(
+                                        top_10["total_records"],
+                                        "Total Records",
+                                        "TotalRecords",
+                                        "📊 Top 10 by Total Records",
+                                        "#F38181",
+                                    )
+                                    st.plotly_chart(
+                                        fig_records, use_container_width=True
+                                    )
+
+                                with col_right:
+                                    st.markdown("### 📋 Rankings")
+                                    df_display = top_10["total_records"].copy()
+                                    df_display["Rank"] = range(1, len(df_display) + 1)
+                                    df_display = df_display[
+                                        [
+                                            "Rank",
+                                            "Name",
+                                            "TotalRecords",
+                                            "TotalDaysAttended",
+                                        ]
+                                    ]
+                                    st.dataframe(
+                                        df_display,
+                                        use_container_width=True,
+                                        hide_index=True,
+                                    )
+
+                            # Individual Employee Lookup
+                            st.markdown("---")
+                            st.subheader("🔍 Individual Employee Lookup")
+                            st.markdown(
+                                "Search for a specific employee to see detailed attendance breakdown"
+                            )
+
+                            selected_employee = st.selectbox(
+                                "Select Employee:",
+                                options=[""]
+                                + sorted(metrics["Name"].unique().tolist()),
+                                help="Choose an employee to see their detailed statistics",
+                            )
+
+                            if selected_employee:
+                                emp_data = metrics[
+                                    metrics["Name"] == selected_employee
+                                ].iloc[0]
+
+                                st.markdown(f"### 👤 {selected_employee}")
+
+                                # Display metrics in cards
+                                col1, col2, col3, col4 = st.columns(4)
+
+                                with col1:
+                                    st.metric(
+                                        "📅 Total Days Attended",
+                                        f"{int(emp_data['TotalDaysAttended']):,}",
+                                        help="Number of unique dates with attendance records",
+                                    )
+
+                                with col2:
+                                    st.metric(
+                                        "⏰ Overtime Hours",
+                                        f"{emp_data['TotalOvertimeHours']:.1f}",
+                                        help="Total hours of overtime worked",
+                                    )
+
+                                with col3:
+                                    st.metric(
+                                        "🌅 Weekend Days",
+                                        f"{int(emp_data['WeekendDaysWorked']):,}",
+                                        help="Days worked on Saturday/Sunday",
+                                    )
+
+                                with col4:
+                                    st.metric(
+                                        "📊 Total Records",
+                                        f"{int(emp_data['TotalRecords']):,}",
+                                        help="Total check-in/check-out entries",
+                                    )
+
+                                # Detailed breakdown
+                                col_left, col_right = st.columns(2)
+
+                                with col_left:
+                                    st.markdown("#### 📊 Attendance Breakdown")
+                                    breakdown_data = pd.DataFrame(
+                                        {
+                                            "Category": [
+                                                "Weekday Days",
+                                                "Weekend Days",
+                                                "Total Days",
+                                            ],
+                                            "Count": [
+                                                int(emp_data["WeekdayDaysWorked"]),
+                                                int(emp_data["WeekendDaysWorked"]),
+                                                int(emp_data["TotalDaysAttended"]),
+                                            ],
+                                        }
+                                    )
+
+                                    fig_breakdown = go.Figure(
+                                        data=[
+                                            go.Bar(
+                                                x=breakdown_data["Category"],
+                                                y=breakdown_data["Count"],
+                                                text=breakdown_data["Count"],
+                                                textposition="outside",
+                                                marker_color=[
+                                                    "#4ECDC4",
+                                                    "#FF6B6B",
+                                                    "#95E1D3",
+                                                ],
+                                            )
+                                        ]
+                                    )
+                                    fig_breakdown.update_layout(
+                                        title=f"Days Worked Breakdown",
+                                        xaxis_title="Category",
+                                        yaxis_title="Number of Days",
+                                        height=300,
+                                        showlegend=False,
+                                    )
+                                    st.plotly_chart(
+                                        fig_breakdown, use_container_width=True
+                                    )
+
+                                with col_right:
+                                    st.markdown("#### ⏰ Overtime Analysis")
+
+                                    # Calculate overtime stats
+                                    ot_hours = emp_data["TotalOvertimeHours"]
+                                    ot_days = emp_data["OvertimeDays"]
+                                    avg_ot_per_day = (
+                                        ot_hours / ot_days if ot_days > 0 else 0
+                                    )
+
+                                    ot_stats = pd.DataFrame(
+                                        {
+                                            "Metric": [
+                                                "Total OT Hours",
+                                                "OT Days",
+                                                "Avg Hours/Day",
+                                            ],
+                                            "Value": [
+                                                f"{ot_hours:.1f}",
+                                                f"{int(ot_days)}",
+                                                f"{avg_ot_per_day:.1f}",
+                                            ],
+                                        }
+                                    )
+
+                                    st.dataframe(
+                                        ot_stats,
+                                        use_container_width=True,
+                                        hide_index=True,
+                                    )
+
+                                    # Show how this employee ranks
+                                    st.markdown("#### 🏅 Rankings")
+
+                                    ot_rank = (
+                                        metrics["TotalOvertimeHours"]
+                                        > emp_data["TotalOvertimeHours"]
+                                    ).sum() + 1
+                                    attendance_rank = (
+                                        metrics["TotalDaysAttended"]
+                                        > emp_data["TotalDaysAttended"]
+                                    ).sum() + 1
+                                    weekend_rank = (
+                                        metrics["WeekendDaysWorked"]
+                                        > emp_data["WeekendDaysWorked"]
+                                    ).sum() + 1
+
+                                    rankings = pd.DataFrame(
+                                        {
+                                            "Category": [
+                                                "Overtime Hours",
+                                                "Total Attendance",
+                                                "Weekend Work",
+                                            ],
+                                            "Rank": [
+                                                f"#{ot_rank} of {len(metrics)}",
+                                                f"#{attendance_rank} of {len(metrics)}",
+                                                f"#{weekend_rank} of {len(metrics)}",
+                                            ],
+                                        }
+                                    )
+
+                                    st.dataframe(
+                                        rankings,
+                                        use_container_width=True,
+                                        hide_index=True,
+                                    )
+
+                                # Show detailed records from original data
+                                st.markdown("#### 📋 Sample Attendance Records")
+
+                                employee_records = df_stats[
+                                    df_stats["Name"] == selected_employee
+                                ].sort_values("DateTime", ascending=False)
+
+                                if len(employee_records) > 0:
+                                    display_records = employee_records[
+                                        ["Date", "Time", "Status", "Weekday"]
+                                    ].head(10)
+                                    st.dataframe(
+                                        display_records,
+                                        use_container_width=True,
+                                        hide_index=True,
+                                    )
+                                    st.caption(
+                                        f"Showing 10 most recent records out of {len(employee_records):,} total"
+                                    )
+
+                                # Calculation explanation
+                                with st.expander(
+                                    "💡 How TotalDaysAttended is Calculated"
+                                ):
+                                    st.markdown(
+                                        f"""
+                                    **Formula:** `TotalDaysAttended = Number of UNIQUE dates`
+                                    
+                                    **For {selected_employee}:**
+                                    - Has **{int(emp_data['TotalRecords']):,}** total check-in/check-out records
+                                    - These records span **{int(emp_data['TotalDaysAttended']):,}** unique dates
+                                    - This means an average of **{emp_data['TotalRecords']/emp_data['TotalDaysAttended']:.1f}** records per day
+                                    
+                                    **Why count unique dates?**
+                                    
+                                    An employee might have multiple records per day:
+                                    - Check In, Check Out, Overtime In, Overtime Out = 4 records
+                                    - But it's still counted as **1 day attended**
+                                    
+                                    **Python Formula:**
+                                    ```python
+                                    total_days = df[df['Name'] == '{selected_employee}']['Date'].nunique()
+                                    ```
+                                    
+                                    **Excel Formula:**
+                                    ```excel
+                                    =SUMPRODUCT((Name_Column="{selected_employee}")/COUNTIFS(Name_Column,"{selected_employee}",Date_Column,Date_Column))
+                                    ```
+                                    """
+                                    )
+
+                            # Full data table
+                            st.markdown("---")
+                            st.subheader("📋 Complete Employee Metrics")
+
+                            # Add search/filter
+                            search_name = st.text_input(
+                                "🔍 Search by employee name:", "", key="stats_search"
+                            )
+
+                            if search_name:
+                                filtered_metrics = metrics[
+                                    metrics["Name"].str.contains(
+                                        search_name, case=False, na=False
+                                    )
+                                ]
+                            else:
+                                filtered_metrics = metrics
+
+                            # Display full table
+                            st.dataframe(
+                                filtered_metrics.style.format(
+                                    {
+                                        "TotalOvertimeHours": "{:.1f}",
+                                        "TotalDaysAttended": "{:.0f}",
+                                        "WeekendDaysWorked": "{:.0f}",
+                                        "WeekdayDaysWorked": "{:.0f}",
+                                        "OvertimeDays": "{:.0f}",
+                                        "TotalRecords": "{:.0f}",
+                                    }
+                                ),
+                                use_container_width=True,
+                                hide_index=True,
+                            )
+
+                            # Export options
+                            st.markdown("---")
+                            st.subheader("💾 Export Results")
+
+                            col1, col2 = st.columns(2)
+
+                            with col1:
+                                # Export to Excel
+                                output = io.BytesIO()
+                                with pd.ExcelWriter(
+                                    output, engine="openpyxl"
+                                ) as writer:
+                                    metrics.to_excel(
+                                        writer, sheet_name="All Employees", index=False
+                                    )
+                                    top_10["overtime_hours"].to_excel(
+                                        writer,
+                                        sheet_name="Top 10 Overtime",
+                                        index=False,
+                                    )
+                                    top_10["weekend_work"].to_excel(
+                                        writer, sheet_name="Top 10 Weekend", index=False
+                                    )
+                                    top_10["daily_attendance"].to_excel(
+                                        writer,
+                                        sheet_name="Top 10 Attendance",
+                                        index=False,
+                                    )
+                                    top_10["total_records"].to_excel(
+                                        writer, sheet_name="Top 10 Records", index=False
+                                    )
+
+                                output.seek(0)
+
+                                st.download_button(
+                                    label="📥 Download Excel Report",
+                                    data=output,
+                                    file_name=f"attendance_statistics_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
+                                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                                    help="Download complete statistics in Excel format",
+                                )
+
+                            with col2:
+                                # Export to CSV
+                                csv = metrics.to_csv(index=False)
+
+                                st.download_button(
+                                    label="📥 Download CSV Report",
+                                    data=csv,
+                                    file_name=f"attendance_statistics_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+                                    mime="text/csv",
+                                    help="Download complete statistics in CSV format",
+                                )
+
+                            st.success(
+                                "✅ Analysis complete! You can now review the Top 10 rankings and export the results."
+                            )
+
+                        else:
+                            st.error(
+                                "❌ Failed to load the file. Please check the file format."
+                            )
+
+                except Exception as e:
+                    st.error(f"❌ Error processing file: {str(e)}")
+                    st.exception(e)
+
+            else:
+                # Welcome screen
+                st.info("👈 Please upload an attendance file to begin analysis")
+
+                st.markdown("---")
+
+                col1, col2 = st.columns(2)
+
+                with col1:
+                    st.markdown("### 🎯 What This Feature Does")
+                    st.markdown(
+                        """
+                    This feature provides comprehensive attendance statistics including:
+                    
+                    1. **Top 10 Overtime Hours** - Employees with highest overtime
+                    2. **Top 10 Weekend Workers** - Employees working most weekends
+                    3. **Top 10 Daily Attendance** - Employees with best attendance records
+                    4. **Comparison Charts** - Visual comparison of all metrics
+                    5. **Individual Employee Lookup** - Detailed stats for any employee
+                    6. **Full Statistics** - Complete data for all employees
+                    7. **Export Options** - Download results in Excel or CSV format
+                    """
+                    )
+
+                with col2:
+                    st.markdown("### 📝 Supported File Formats")
+                    st.markdown(
+                        """
+                    The analyzer can process:
+                    
+                    - **Office Attendance fingerprint.xlsx**
+                    - **Peat Office Attendance 2025.xlsx**
+                    - Any similar attendance files with columns:
+                      - Department
+                      - Name
+                      - Date/Time
+                      - Status (C/In, C/Out, OverTime In/Out)
+                    
+                    The system automatically handles:
+                    - Title rows
+                    - Empty rows
+                    - Column name variations
+                    """
+                    )
 
     # Tab 3: Advanced Analysis
     with tab3:
@@ -4115,7 +4922,8 @@ def create_dashboard():
 
     # Tab: OT Consolidation (1.5x Rate)
     with tab_ot:
-        st.markdown("""
+        st.markdown(
+            """
         <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
                     padding: 25px; border-radius: 15px; margin-bottom: 30px;">
             <h2 style="color: white; margin: 0; text-align: center;">
@@ -4125,12 +4933,17 @@ def create_dashboard():
                 Calculate OT using Excel formula logic and consolidate by employee & month
             </p>
         </div>
-        """, unsafe_allow_html=True)
-        
+        """,
+            unsafe_allow_html=True,
+        )
+
         if not OT_MODULE_AVAILABLE:
-            st.error("⚠️ OT Consolidator module not available. Please ensure 'overtime_consolidator.py' is in the same directory.")
+            st.error(
+                "⚠️ OT Consolidator module not available. Please ensure 'overtime_consolidator.py' is in the same directory."
+            )
         else:
-            st.markdown("""
+            st.markdown(
+                """
             ### 📋 How This Works
             
             This feature reads your **Consolidated OT management Excel file** and:
@@ -4143,297 +4956,379 @@ def create_dashboard():
             4. **Updates "Consolidated" sheet** - Matches employee names and dates
             
             ---
-            """)
-            
+            """
+            )
+
             # File uploader for Excel file
             col1, col2 = st.columns([2, 1])
-            
+
             with col1:
                 ot_file = st.file_uploader(
                     "📂 Upload your Consolidated OT Management Excel file",
                     type=["xlsx", "xls"],
                     key="ot_file_uploader",
-                    help="Upload the Excel file with 'Overal' and 'Consolidated' sheets"
+                    help="Upload the Excel file with 'Overal' and 'Consolidated' sheets",
                 )
-            
+
             with col2:
-                st.markdown("""
+                st.markdown(
+                    """
                 <div style="background: #f0f8ff; padding: 15px; border-radius: 10px; margin-top: 10px;">
                     <strong>📊 Required Sheets:</strong><br>
                     • Overal<br>
                     • Consolidated
                 </div>
-                """, unsafe_allow_html=True)
-            
+                """,
+                    unsafe_allow_html=True,
+                )
+
             if ot_file is not None:
                 try:
                     # Save uploaded file temporarily
-                    with tempfile.NamedTemporaryFile(delete=False, suffix='.xlsx') as tmp_file:
+                    with tempfile.NamedTemporaryFile(
+                        delete=False, suffix=".xlsx"
+                    ) as tmp_file:
                         tmp_file.write(ot_file.getvalue())
                         tmp_path = tmp_file.name
-                    
+
                     st.success(f"✅ File uploaded: {ot_file.name}")
-                    
+
                     # Process the file
                     with st.spinner("🔄 Processing overtime calculations..."):
                         # Read Overal sheet
                         df_overal = read_overal_sheet(tmp_path)
-                        
+
                         # Apply OT formula
                         df_overal = apply_ot_formula(df_overal)
-                        
+
                         # Compare calculations
                         comparison = compare_ot_calculations(df_overal)
-                        
+
                         # Consolidate by employee and month
-                        df_consolidated = consolidate_overtime_by_employee_month(df_overal)
-                    
+                        df_consolidated = consolidate_overtime_by_employee_month(
+                            df_overal
+                        )
+
                     st.success("✅ Processing complete!")
-                    
+
                     # Display results in tabs
-                    subtab1, subtab2, subtab3, subtab4 = st.tabs([
-                        "📊 Summary", "🔍 Detailed Records", "📈 Consolidated View", "⚖️ Formula Verification"
-                    ])
-                    
+                    subtab1, subtab2, subtab3, subtab4 = st.tabs(
+                        [
+                            "📊 Summary",
+                            "🔍 Detailed Records",
+                            "📈 Consolidated View",
+                            "⚖️ Formula Verification",
+                        ]
+                    )
+
                     with subtab1:
                         st.markdown("### 📊 Summary Statistics")
-                        
+
                         col1, col2, col3, col4 = st.columns(4)
-                        
-                        total_employees = df_overal['EMPLOYEE NAME'].nunique()
+
+                        total_employees = df_overal["EMPLOYEE NAME"].nunique()
                         total_records = len(df_overal)
-                        total_ot_hours = df_overal['Calculated_Hrs_15_Rate'].sum()
-                        avg_ot_per_employee = total_ot_hours / total_employees if total_employees > 0 else 0
-                        
+                        total_ot_hours = df_overal["Calculated_Hrs_15_Rate"].sum()
+                        avg_ot_per_employee = (
+                            total_ot_hours / total_employees
+                            if total_employees > 0
+                            else 0
+                        )
+
                         with col1:
                             st.metric("👥 Total Employees", f"{total_employees}")
-                        
+
                         with col2:
                             st.metric("📝 Total Records", f"{total_records}")
-                        
+
                         with col3:
-                            st.metric("⏰ Total OT Hours (1.5x)", f"{total_ot_hours:.1f}h")
-                        
+                            st.metric(
+                                "⏰ Total OT Hours (1.5x)", f"{total_ot_hours:.1f}h"
+                            )
+
                         with col4:
-                            st.metric("📊 Avg OT/Employee", f"{avg_ot_per_employee:.1f}h")
-                        
+                            st.metric(
+                                "📊 Avg OT/Employee", f"{avg_ot_per_employee:.1f}h"
+                            )
+
                         st.markdown("---")
-                        
+
                         # Top OT earners
                         st.markdown("### 🏆 Top 10 Employees by OT Hours (1.5x Rate)")
-                        top_employees = df_overal.groupby('EMPLOYEE NAME')['Calculated_Hrs_15_Rate'].sum().sort_values(ascending=False).head(10)
-                        
+                        top_employees = (
+                            df_overal.groupby("EMPLOYEE NAME")["Calculated_Hrs_15_Rate"]
+                            .sum()
+                            .sort_values(ascending=False)
+                            .head(10)
+                        )
+
                         fig = px.bar(
                             x=top_employees.values,
                             y=top_employees.index,
-                            orientation='h',
-                            labels={'x': 'OT Hours (1.5x)', 'y': 'Employee'},
-                            title='Top 10 Employees by Overtime Hours',
+                            orientation="h",
+                            labels={"x": "OT Hours (1.5x)", "y": "Employee"},
+                            title="Top 10 Employees by Overtime Hours",
                             color=top_employees.values,
-                            color_continuous_scale='Blues'
+                            color_continuous_scale="Blues",
                         )
                         fig.update_layout(height=400, showlegend=False)
                         st.plotly_chart(fig, use_container_width=True)
-                        
+
                         # OT distribution
                         st.markdown("### 📊 OT Hours Distribution")
                         fig2 = px.histogram(
-                            df_overal[df_overal['Calculated_Hrs_15_Rate'] > 0],
-                            x='Calculated_Hrs_15_Rate',
+                            df_overal[df_overal["Calculated_Hrs_15_Rate"] > 0],
+                            x="Calculated_Hrs_15_Rate",
                             nbins=20,
-                            labels={'Calculated_Hrs_15_Rate': 'OT Hours (1.5x)', 'count': 'Number of Records'},
-                            title='Distribution of OT Hours'
+                            labels={
+                                "Calculated_Hrs_15_Rate": "OT Hours (1.5x)",
+                                "count": "Number of Records",
+                            },
+                            title="Distribution of OT Hours",
                         )
                         fig2.update_layout(height=350)
                         st.plotly_chart(fig2, use_container_width=True)
-                    
+
                     with subtab2:
                         st.markdown("### 🔍 Detailed Overtime Records")
-                        
+
                         # Filters
                         col1, col2 = st.columns(2)
-                        
+
                         with col1:
                             employee_filter = st.multiselect(
                                 "Filter by Employee",
-                                options=sorted(df_overal['EMPLOYEE NAME'].dropna().unique()),
-                                key="ot_employee_filter"
+                                options=sorted(
+                                    df_overal["EMPLOYEE NAME"].dropna().unique()
+                                ),
+                                key="ot_employee_filter",
                             )
-                        
+
                         with col2:
                             date_range = st.date_input(
-                                "Filter by Date Range",
-                                value=[],
-                                key="ot_date_filter"
+                                "Filter by Date Range", value=[], key="ot_date_filter"
                             )
-                        
+
                         # Apply filters
                         filtered_df = df_overal.copy()
-                        
+
                         if employee_filter:
-                            filtered_df = filtered_df[filtered_df['EMPLOYEE NAME'].isin(employee_filter)]
-                        
+                            filtered_df = filtered_df[
+                                filtered_df["EMPLOYEE NAME"].isin(employee_filter)
+                            ]
+
                         if len(date_range) == 2:
                             filtered_df = filtered_df[
-                                (filtered_df['Date'] >= pd.Timestamp(date_range[0])) &
-                                (filtered_df['Date'] <= pd.Timestamp(date_range[1]))
+                                (filtered_df["Date"] >= pd.Timestamp(date_range[0]))
+                                & (filtered_df["Date"] <= pd.Timestamp(date_range[1]))
                             ]
-                        
+
                         # Display table
                         display_columns = [
-                            'SN', 'EMPLOYEE NAME', 'Date', 'Start time', 'End time',
-                            'No. Hours', 'Hrs at 1.5 rate', 'Calculated_Hrs_15_Rate', 'Type of Work'
+                            "SN",
+                            "EMPLOYEE NAME",
+                            "Date",
+                            "Start time",
+                            "End time",
+                            "No. Hours",
+                            "Hrs at 1.5 rate",
+                            "Calculated_Hrs_15_Rate",
+                            "Type of Work",
                         ]
-                        
+
                         st.dataframe(
                             filtered_df[display_columns].round(2),
                             use_container_width=True,
-                            height=400
+                            height=400,
                         )
-                        
-                        st.markdown(f"**Showing {len(filtered_df)} of {len(df_overal)} records**")
-                    
+
+                        st.markdown(
+                            f"**Showing {len(filtered_df)} of {len(df_overal)} records**"
+                        )
+
                     with subtab3:
                         st.markdown("### 📈 Consolidated Overtime by Employee & Month")
-                        
+
                         st.dataframe(
                             df_consolidated.round(2),
                             use_container_width=True,
-                            height=500
+                            height=500,
                         )
-                        
+
                         # Download button for consolidated data
-                        csv = df_consolidated.to_csv(index=False).encode('utf-8')
+                        csv = df_consolidated.to_csv(index=False).encode("utf-8")
                         st.download_button(
                             label="📥 Download Consolidated Data (CSV)",
                             data=csv,
                             file_name="consolidated_ot_by_employee_month.csv",
-                            mime="text/csv"
+                            mime="text/csv",
                         )
-                        
+
                         # Monthly trend
                         st.markdown("### 📈 Monthly OT Trend")
-                        monthly_cols = [col for col in df_consolidated.columns if col not in ['EMPLOYEE NAME', 'Total']]
+                        monthly_cols = [
+                            col
+                            for col in df_consolidated.columns
+                            if col not in ["EMPLOYEE NAME", "Total"]
+                        ]
                         if monthly_cols:
                             monthly_totals = df_consolidated[monthly_cols].sum()
-                            
+
                             fig3 = px.line(
                                 x=[str(col) for col in monthly_totals.index],
                                 y=monthly_totals.values,
-                                labels={'x': 'Month', 'y': 'Total OT Hours (1.5x)'},
-                                title='Monthly Overtime Trend',
-                                markers=True
+                                labels={"x": "Month", "y": "Total OT Hours (1.5x)"},
+                                title="Monthly Overtime Trend",
+                                markers=True,
                             )
                             fig3.update_layout(height=350)
                             st.plotly_chart(fig3, use_container_width=True)
-                    
+
                     with subtab4:
                         st.markdown("### ⚖️ Formula Verification")
-                        st.info("Comparing Excel formula results with Python calculations")
-                        
+                        st.info(
+                            "Comparing Excel formula results with Python calculations"
+                        )
+
                         # Show comparison stats
                         col1, col2, col3 = st.columns(3)
-                        
-                        matches = comparison['Match'].sum()
+
+                        matches = comparison["Match"].sum()
                         total = len(comparison)
                         match_percentage = (matches / total * 100) if total > 0 else 0
-                        
+
                         with col1:
                             st.metric("✅ Matches", f"{matches}/{total}")
-                        
+
                         with col2:
                             st.metric("📊 Match Rate", f"{match_percentage:.1f}%")
-                        
+
                         with col3:
                             mismatches = total - matches
                             st.metric("⚠️ Mismatches", f"{mismatches}")
-                        
+
                         if match_percentage == 100:
-                            st.success("🎉 Perfect match! All calculations align with Excel formula.")
+                            st.success(
+                                "🎉 Perfect match! All calculations align with Excel formula."
+                            )
                         else:
-                            st.warning(f"⚠️ Found {mismatches} mismatches. Review details below.")
-                        
+                            st.warning(
+                                f"⚠️ Found {mismatches} mismatches. Review details below."
+                            )
+
                         # Show comparison table
                         st.markdown("### 📋 Detailed Comparison")
-                        
-                        display_comparison = comparison[[
-                            'SN', 'EMPLOYEE NAME', 'Date', 'Start time', 'End time',
-                            'Hrs at 1.5 rate', 'Calculated_Hrs_15_Rate', 'Difference', 'Match'
-                        ]].copy()
-                        
+
+                        display_comparison = comparison[
+                            [
+                                "SN",
+                                "EMPLOYEE NAME",
+                                "Date",
+                                "Start time",
+                                "End time",
+                                "Hrs at 1.5 rate",
+                                "Calculated_Hrs_15_Rate",
+                                "Difference",
+                                "Match",
+                            ]
+                        ].copy()
+
                         # Color-code mismatches
                         def highlight_mismatch(row):
-                            if not row['Match']:
-                                return ['background-color: #ffe6e6'] * len(row)
-                            return [''] * len(row)
-                        
+                            if not row["Match"]:
+                                return ["background-color: #ffe6e6"] * len(row)
+                            return [""] * len(row)
+
                         st.dataframe(
                             display_comparison.round(2),
                             use_container_width=True,
-                            height=400
+                            height=400,
                         )
-                    
+
                     # Export section
                     st.markdown("---")
                     st.markdown("### 📥 Export Results")
-                    
+
                     col1, col2, col3 = st.columns(3)
-                    
+
                     with col1:
                         # Export detailed records
-                        csv_detailed = df_overal[[
-                            'SN', 'EMPLOYEE NAME', 'Date', 'Start time', 'End time',
-                            'No. Hours', 'Hrs at 1.5 rate', 'Calculated_Hrs_15_Rate'
-                        ]].to_csv(index=False).encode('utf-8')
-                        
+                        csv_detailed = (
+                            df_overal[
+                                [
+                                    "SN",
+                                    "EMPLOYEE NAME",
+                                    "Date",
+                                    "Start time",
+                                    "End time",
+                                    "No. Hours",
+                                    "Hrs at 1.5 rate",
+                                    "Calculated_Hrs_15_Rate",
+                                ]
+                            ]
+                            .to_csv(index=False)
+                            .encode("utf-8")
+                        )
+
                         st.download_button(
                             label="📄 Export Detailed Records (CSV)",
                             data=csv_detailed,
                             file_name="overtime_detailed_records.csv",
-                            mime="text/csv"
+                            mime="text/csv",
                         )
-                    
+
                     with col2:
                         # Export consolidated
-                        csv_consolidated = df_consolidated.to_csv(index=False).encode('utf-8')
-                        
+                        csv_consolidated = df_consolidated.to_csv(index=False).encode(
+                            "utf-8"
+                        )
+
                         st.download_button(
                             label="📊 Export Consolidated (CSV)",
                             data=csv_consolidated,
                             file_name="overtime_consolidated_by_month.csv",
-                            mime="text/csv"
+                            mime="text/csv",
                         )
-                    
+
                     with col3:
                         # Export to Excel with all sheets
                         output = io.BytesIO()
-                        with pd.ExcelWriter(output, engine='openpyxl') as writer:
-                            df_overal.to_excel(writer, sheet_name='Overal_Updated', index=False)
-                            df_consolidated.to_excel(writer, sheet_name='Consolidated_New', index=False)
-                            comparison.to_excel(writer, sheet_name='Verification', index=False)
-                        
+                        with pd.ExcelWriter(output, engine="openpyxl") as writer:
+                            df_overal.to_excel(
+                                writer, sheet_name="Overal_Updated", index=False
+                            )
+                            df_consolidated.to_excel(
+                                writer, sheet_name="Consolidated_New", index=False
+                            )
+                            comparison.to_excel(
+                                writer, sheet_name="Verification", index=False
+                            )
+
                         excel_data = output.getvalue()
-                        
+
                         st.download_button(
                             label="📊 Export Full Report (Excel)",
                             data=excel_data,
                             file_name="overtime_consolidation_full_report.xlsx",
-                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                         )
-                    
+
                     # Clean up temp file
                     os.unlink(tmp_path)
-                    
+
                 except Exception as e:
                     st.error(f"❌ Error processing file: {str(e)}")
                     st.exception(e)
-            
+
             else:
-                st.info("👆 Please upload your Consolidated OT Management Excel file to begin.")
-                
+                st.info(
+                    "👆 Please upload your Consolidated OT Management Excel file to begin."
+                )
+
                 # Show example structure
                 with st.expander("📖 View Expected File Structure"):
-                    st.markdown("""
+                    st.markdown(
+                        """
                     #### Required Sheets and Columns:
                     
                     **Sheet: Overal**
@@ -4470,7 +5365,8 @@ def create_dashboard():
                        3,
                     0)))
                     ```
-                    """)
+                    """
+                    )
 
     with tab5:
         display_unit_tests_tab()
@@ -4496,7 +5392,7 @@ def create_dashboard():
     st.markdown(
         """
     <div style="text-align: center; color: #666;">
-    <p>🧹 <strong>Timesheet Consolidator Dashboard</strong> | Professional Data Processing System | October 2025</p>
+    <p>📊 <strong>Attendance Statistics Dashboard</strong> | Professional Data Processing System | December 2025</p>
     <p style="font-size: 0.9rem; margin-top: 0.5rem;">
     Developed by <a href="https://olivierdusa.me" target="_blank" style="color: #1f77b4; text-decoration: none; font-weight: bold;">Olivier Dusabamahoro</a>
     </p>
