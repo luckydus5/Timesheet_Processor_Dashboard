@@ -3935,6 +3935,130 @@ def create_dashboard():
                     fig_pie.update_traces(textposition='inside', textinfo='percent+label')
                     st.plotly_chart(fig_pie, use_container_width=True)
                     
+                    # TOP USERS FOR EACH METHOD - COMBINED TABLE
+                    st.markdown("---")
+                    st.subheader("🏆 Top 10 Users by Verification Method")
+                    st.markdown("**All verification methods shown in one table with usage counts**")
+                    
+                    # Get top 10 for each method
+                    top_fp_list = verify_stats['method_users']['FP'].head(10).copy() if not verify_stats['method_users']['FP'].empty else pd.DataFrame()
+                    top_pw_list = verify_stats['method_users']['PW'].head(10).copy() if not verify_stats['method_users']['PW'].empty else pd.DataFrame()
+                    top_rf_list = verify_stats['method_users']['RF'].head(10).copy() if not verify_stats['method_users']['RF'].empty else pd.DataFrame()
+                    
+                    # Create side-by-side display
+                    col1, col2, col3 = st.columns(3)
+                    
+                    with col1:
+                        st.markdown("### 🖐️ Fingerprint (FP)")
+                        if not top_fp_list.empty:
+                            fp_display = top_fp_list[['Name', 'Department', 'Usage_Count']].copy()
+                            fp_display.insert(0, 'Rank', range(1, len(fp_display) + 1))
+                            st.dataframe(fp_display, use_container_width=True, hide_index=True, height=400)
+                            st.metric("Total FP Users", len(verify_stats['method_users']['FP']))
+                        else:
+                            st.info("No FP users")
+                    
+                    with col2:
+                        st.markdown("### 🔑 Password (PW)")
+                        if not top_pw_list.empty:
+                            pw_display = top_pw_list[['Name', 'Department', 'Usage_Count']].copy()
+                            pw_display.insert(0, 'Rank', range(1, len(pw_display) + 1))
+                            st.dataframe(pw_display, use_container_width=True, hide_index=True, height=400)
+                            st.metric("Total PW Users", len(verify_stats['method_users']['PW']))
+                        else:
+                            st.info("No PW users")
+                    
+                    with col3:
+                        st.markdown("### 📡 RFID (RF)")
+                        if not top_rf_list.empty:
+                            rf_display = top_rf_list[['Name', 'Department', 'Usage_Count']].copy()
+                            rf_display.insert(0, 'Rank', range(1, len(rf_display) + 1))
+                            st.dataframe(rf_display, use_container_width=True, hide_index=True, height=400)
+                            st.metric("Total RF Users", len(verify_stats['method_users']['RF']))
+                        else:
+                            st.info("No RF users")
+                    
+                    # COMBINED SUMMARY TABLE
+                    st.markdown("---")
+                    st.subheader("📊 Combined Summary - All Methods in One Sheet")
+                    
+                    # Show complete employee list with ALL verification counts
+                    combined_summary = verify_stats['by_employee'].copy()
+                    combined_summary.insert(0, 'Rank', range(1, len(combined_summary) + 1))
+                    
+                    # Reorder columns for better display
+                    display_columns = [
+                        'Rank', 'Name', 'Department',
+                        'FP_Count', 'PW_Count', 'RF_Count',
+                        'Total_Records', 'Primary_Method'
+                    ]
+                    combined_summary_display = combined_summary[display_columns]
+                    
+                    st.dataframe(
+                        combined_summary_display,
+                        use_container_width=True,
+                        hide_index=True,
+                        height=500
+                    )
+                    
+                    # Download button for combined summary
+                    csv_combined = combined_summary_display.to_csv(index=False)
+                    st.download_button(
+                        label="📥 Download Combined Summary (CSV)",
+                        data=csv_combined,
+                        file_name=f"verification_methods_summary_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+                        mime="text/csv",
+                        key="download_combined_summary"
+                    )
+                    
+                    # Comparison Chart
+                    st.markdown("---")
+                    st.subheader("📊 Visual Comparison - Top Users")
+                    
+                    # Create combined top 10 chart
+                    comparison_data = []
+                    
+                    if not verify_stats['method_users']['FP'].empty:
+                        top_fp_chart = verify_stats['method_users']['FP'].head(10).copy()
+                        top_fp_chart['Method'] = 'Fingerprint'
+                        comparison_data.append(top_fp_chart[['Name', 'Usage_Count', 'Method']])
+                    
+                    if not verify_stats['method_users']['PW'].empty:
+                        top_pw_chart = verify_stats['method_users']['PW'].head(10).copy()
+                        top_pw_chart['Method'] = 'Password'
+                        comparison_data.append(top_pw_chart[['Name', 'Usage_Count', 'Method']])
+                    
+                    if not verify_stats['method_users']['RF'].empty:
+                        top_rf_chart = verify_stats['method_users']['RF'].head(10).copy()
+                        top_rf_chart['Method'] = 'RFID'
+                        comparison_data.append(top_rf_chart[['Name', 'Usage_Count', 'Method']])
+                    
+                    if comparison_data:
+                        combined_top = pd.concat(comparison_data, ignore_index=True)
+                        
+                        fig_comparison = px.bar(
+                            combined_top,
+                            x='Name',
+                            y='Usage_Count',
+                            color='Method',
+                            title='Top 10 Users by Verification Method',
+                            barmode='group',
+                            color_discrete_map={
+                                'Fingerprint': '#45B7D1',
+                                'Password': '#FF6B6B',
+                                'RFID': '#4ECDC4'
+                            },
+                            text='Usage_Count'
+                        )
+                        fig_comparison.update_traces(textposition='outside')
+                        fig_comparison.update_layout(
+                            xaxis_tickangle=-45,
+                            height=500,
+                            xaxis_title='Employee Name',
+                            yaxis_title='Usage Count'
+                        )
+                        st.plotly_chart(fig_comparison, use_container_width=True)
+                    
                     # Employee-level breakdown tabs
                     st.markdown("---")
                     st.subheader("👥 Employee-Level Breakdown")
