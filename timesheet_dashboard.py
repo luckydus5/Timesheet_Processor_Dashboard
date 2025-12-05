@@ -3347,8 +3347,8 @@ def create_dashboard():
                 load_attendance_file,
                 calculate_all_metrics,
                 get_top_10_metrics,
-                create_comparison_chart,
-                create_individual_metric_chart,
+                get_employee_details,
+                validate_data,
             )
 
             ATTENDANCE_ANALYZER_AVAILABLE = True
@@ -3377,13 +3377,17 @@ def create_dashboard():
                     with st.spinner("🔄 Processing attendance data..."):
                         df_stats = load_attendance_file(temp_file)
 
-                        if df_stats is not None:
+                        if df_stats is not None and len(df_stats) > 0:
                             st.success(
                                 f"✅ Successfully loaded {len(df_stats):,} attendance records"
                             )
 
+                            # Validate data
+                            validation = validate_data(df_stats)
+
                             # Calculate metrics
                             metrics = calculate_all_metrics(df_stats)
+                            combined = metrics['combined']
                             top_10 = get_top_10_metrics(metrics)
 
                             # Display summary statistics
@@ -3395,19 +3399,19 @@ def create_dashboard():
                             with col1:
                                 st.metric(
                                     "Total Employees",
-                                    f"{len(metrics):,}",
+                                    f"{validation['UniqueEmployees']:,}",
                                     help="Number of unique employees in the data",
                                 )
 
                             with col2:
                                 st.metric(
                                     "Total Records",
-                                    f"{len(df_stats):,}",
+                                    f"{validation['TotalRecords']:,}",
                                     help="Total attendance records processed",
                                 )
 
                             with col3:
-                                total_ot = metrics["TotalOvertimeHours"].sum()
+                                total_ot = combined["TotalOvertimeHours"].sum()
                                 st.metric(
                                     "Total Overtime Hours",
                                     f"{total_ot:,.1f}",
@@ -3415,29 +3419,25 @@ def create_dashboard():
                                 )
 
                             with col4:
-                                total_weekend = metrics["WeekendDaysWorked"].sum()
+                                total_weekend = combined["WeekendDays"].sum()
                                 st.metric(
                                     "Total Weekend Days",
                                     f"{int(total_weekend):,}",
                                     help="Total days worked on weekends",
                                 )
 
-                            # Main comparison chart
-                            st.markdown("---")
-                            st.subheader("📊 Top 10 Comparison Chart")
-                            comparison_fig = create_comparison_chart(top_10)
-                            st.plotly_chart(comparison_fig, use_container_width=True)
+                            # Date range info
+                            st.info(f"📅 Date Range: {validation['DateRange']['min']} to {validation['DateRange']['max']}")
 
                             # Individual metric tabs
                             st.markdown("---")
-                            st.subheader("🏆 Detailed Top 10 Rankings")
+                            st.subheader("🏆 Top 10 Rankings")
 
-                            tab_ot, tab_weekend, tab_attendance, tab_records = st.tabs(
+                            tab_ot, tab_weekend, tab_attendance = st.tabs(
                                 [
                                     "⏰ Overtime Hours",
                                     "🌅 Weekend Work",
                                     "📅 Daily Attendance",
-                                    "📊 Total Records",
                                 ]
                             )
 
@@ -3445,25 +3445,30 @@ def create_dashboard():
                                 col_left, col_right = st.columns([2, 1])
 
                                 with col_left:
-                                    fig_ot = create_individual_metric_chart(
-                                        top_10["overtime_hours"],
-                                        "Overtime Hours",
-                                        "TotalOvertimeHours",
-                                        "🏆 Top 10 Employees by Overtime Hours",
-                                        "#FF6B6B",
+                                    # Create overtime chart
+                                    import plotly.express as px
+                                    fig_ot = px.bar(
+                                        top_10["top_overtime"],
+                                        x="Name",
+                                        y="TotalOvertimeHours",
+                                        title="🏆 Top 10 Employees by Overtime Hours",
+                                        color_discrete_sequence=["#FF6B6B"],
+                                        text="TotalOvertimeHours"
                                     )
+                                    fig_ot.update_traces(textposition='outside', texttemplate='%{text:.1f}')
+                                    fig_ot.update_layout(xaxis_tickangle=-45, height=500)
                                     st.plotly_chart(fig_ot, use_container_width=True)
 
                                 with col_right:
                                     st.markdown("### 📋 Rankings")
-                                    df_display = top_10["overtime_hours"].copy()
+                                    df_display = top_10["top_overtime"].copy()
                                     df_display["Rank"] = range(1, len(df_display) + 1)
                                     df_display = df_display[
                                         [
                                             "Rank",
                                             "Name",
                                             "TotalOvertimeHours",
-                                            "OvertimeDays",
+                                            "OvertimeSessions",
                                         ]
                                     ]
                                     df_display["TotalOvertimeHours"] = df_display[
@@ -3479,27 +3484,31 @@ def create_dashboard():
                                 col_left, col_right = st.columns([2, 1])
 
                                 with col_left:
-                                    fig_weekend = create_individual_metric_chart(
-                                        top_10["weekend_work"],
-                                        "Weekend Days Worked",
-                                        "WeekendDaysWorked",
-                                        "🌅 Top 10 Weekend Workers",
-                                        "#4ECDC4",
+                                    fig_weekend = px.bar(
+                                        top_10["top_weekend"],
+                                        x="Name",
+                                        y="WeekendDays",
+                                        title="🌅 Top 10 Weekend Workers",
+                                        color_discrete_sequence=["#4ECDC4"],
+                                        text="WeekendDays"
                                     )
+                                    fig_weekend.update_traces(textposition='outside')
+                                    fig_weekend.update_layout(xaxis_tickangle=-45, height=500)
                                     st.plotly_chart(
                                         fig_weekend, use_container_width=True
                                     )
 
                                 with col_right:
                                     st.markdown("### 📋 Rankings")
-                                    df_display = top_10["weekend_work"].copy()
+                                    df_display = top_10["top_weekend"].copy()
                                     df_display["Rank"] = range(1, len(df_display) + 1)
                                     df_display = df_display[
                                         [
                                             "Rank",
                                             "Name",
-                                            "WeekendDaysWorked",
-                                            "TotalDaysAttended",
+                                            "WeekendDays",
+                                            "SaturdayDays",
+                                            "SundayDays",
                                         ]
                                     ]
                                     st.dataframe(
@@ -3512,60 +3521,31 @@ def create_dashboard():
                                 col_left, col_right = st.columns([2, 1])
 
                                 with col_left:
-                                    fig_attendance = create_individual_metric_chart(
-                                        top_10["daily_attendance"],
-                                        "Total Days Attended",
-                                        "TotalDaysAttended",
-                                        "📅 Top 10 by Daily Attendance",
-                                        "#95E1D3",
+                                    fig_attendance = px.bar(
+                                        top_10["top_attendance"],
+                                        x="Name",
+                                        y="TotalDays",
+                                        title="📅 Top 10 by Daily Attendance",
+                                        color_discrete_sequence=["#95E1D3"],
+                                        text="TotalDays"
                                     )
+                                    fig_attendance.update_traces(textposition='outside')
+                                    fig_attendance.update_layout(xaxis_tickangle=-45, height=500)
                                     st.plotly_chart(
                                         fig_attendance, use_container_width=True
                                     )
 
                                 with col_right:
                                     st.markdown("### 📋 Rankings")
-                                    df_display = top_10["daily_attendance"].copy()
+                                    df_display = top_10["top_attendance"].copy()
                                     df_display["Rank"] = range(1, len(df_display) + 1)
                                     df_display = df_display[
                                         [
                                             "Rank",
                                             "Name",
-                                            "TotalDaysAttended",
-                                            "TotalRecords",
-                                        ]
-                                    ]
-                                    st.dataframe(
-                                        df_display,
-                                        use_container_width=True,
-                                        hide_index=True,
-                                    )
-
-                            with tab_records:
-                                col_left, col_right = st.columns([2, 1])
-
-                                with col_left:
-                                    fig_records = create_individual_metric_chart(
-                                        top_10["total_records"],
-                                        "Total Records",
-                                        "TotalRecords",
-                                        "📊 Top 10 by Total Records",
-                                        "#F38181",
-                                    )
-                                    st.plotly_chart(
-                                        fig_records, use_container_width=True
-                                    )
-
-                                with col_right:
-                                    st.markdown("### 📋 Rankings")
-                                    df_display = top_10["total_records"].copy()
-                                    df_display["Rank"] = range(1, len(df_display) + 1)
-                                    df_display = df_display[
-                                        [
-                                            "Rank",
-                                            "Name",
-                                            "TotalRecords",
-                                            "TotalDaysAttended",
+                                            "TotalDays",
+                                            "WeekdayDays",
+                                            "WeekendDays",
                                         ]
                                     ]
                                     st.dataframe(
@@ -3584,13 +3564,13 @@ def create_dashboard():
                             selected_employee = st.selectbox(
                                 "Select Employee:",
                                 options=[""]
-                                + sorted(metrics["Name"].unique().tolist()),
+                                + sorted(combined["Name"].unique().tolist()),
                                 help="Choose an employee to see their detailed statistics",
                             )
 
                             if selected_employee:
-                                emp_data = metrics[
-                                    metrics["Name"] == selected_employee
+                                emp_data = combined[
+                                    combined["Name"] == selected_employee
                                 ].iloc[0]
 
                                 st.markdown(f"### 👤 {selected_employee}")
@@ -3601,7 +3581,7 @@ def create_dashboard():
                                 with col1:
                                     st.metric(
                                         "📅 Total Days Attended",
-                                        f"{int(emp_data['TotalDaysAttended']):,}",
+                                        f"{int(emp_data['TotalDays']):,}",
                                         help="Number of unique dates with attendance records",
                                     )
 
@@ -3615,15 +3595,15 @@ def create_dashboard():
                                 with col3:
                                     st.metric(
                                         "🌅 Weekend Days",
-                                        f"{int(emp_data['WeekendDaysWorked']):,}",
+                                        f"{int(emp_data['WeekendDays']):,}",
                                         help="Days worked on Saturday/Sunday",
                                     )
 
                                 with col4:
                                     st.metric(
-                                        "📊 Total Records",
-                                        f"{int(emp_data['TotalRecords']):,}",
-                                        help="Total check-in/check-out entries",
+                                        "📊 Overtime Sessions",
+                                        f"{int(emp_data['OvertimeSessions']):,}",
+                                        help="Number of overtime sessions",
                                     )
 
                                 # Detailed breakdown
@@ -3639,9 +3619,9 @@ def create_dashboard():
                                                 "Total Days",
                                             ],
                                             "Count": [
-                                                int(emp_data["WeekdayDaysWorked"]),
-                                                int(emp_data["WeekendDaysWorked"]),
-                                                int(emp_data["TotalDaysAttended"]),
+                                                int(emp_data["WeekdayDays"]),
+                                                int(emp_data["WeekendDays"]),
+                                                int(emp_data["TotalDays"]),
                                             ],
                                         }
                                     )
@@ -3677,22 +3657,20 @@ def create_dashboard():
 
                                     # Calculate overtime stats
                                     ot_hours = emp_data["TotalOvertimeHours"]
-                                    ot_days = emp_data["OvertimeDays"]
-                                    avg_ot_per_day = (
-                                        ot_hours / ot_days if ot_days > 0 else 0
-                                    )
+                                    ot_sessions = emp_data["OvertimeSessions"]
+                                    avg_ot_per_session = emp_data["AvgSessionHours"]
 
                                     ot_stats = pd.DataFrame(
                                         {
                                             "Metric": [
                                                 "Total OT Hours",
-                                                "OT Days",
-                                                "Avg Hours/Day",
+                                                "OT Sessions",
+                                                "Avg Hours/Session",
                                             ],
                                             "Value": [
                                                 f"{ot_hours:.1f}",
-                                                f"{int(ot_days)}",
-                                                f"{avg_ot_per_day:.1f}",
+                                                f"{int(ot_sessions)}",
+                                                f"{avg_ot_per_session:.1f}",
                                             ],
                                         }
                                     )
@@ -3707,16 +3685,16 @@ def create_dashboard():
                                     st.markdown("#### 🏅 Rankings")
 
                                     ot_rank = (
-                                        metrics["TotalOvertimeHours"]
+                                        combined["TotalOvertimeHours"]
                                         > emp_data["TotalOvertimeHours"]
                                     ).sum() + 1
                                     attendance_rank = (
-                                        metrics["TotalDaysAttended"]
-                                        > emp_data["TotalDaysAttended"]
+                                        combined["TotalDays"]
+                                        > emp_data["TotalDays"]
                                     ).sum() + 1
                                     weekend_rank = (
-                                        metrics["WeekendDaysWorked"]
-                                        > emp_data["WeekendDaysWorked"]
+                                        combined["WeekendDays"]
+                                        > emp_data["WeekendDays"]
                                     ).sum() + 1
 
                                     rankings = pd.DataFrame(
@@ -3727,9 +3705,9 @@ def create_dashboard():
                                                 "Weekend Work",
                                             ],
                                             "Rank": [
-                                                f"#{ot_rank} of {len(metrics)}",
-                                                f"#{attendance_rank} of {len(metrics)}",
-                                                f"#{weekend_rank} of {len(metrics)}",
+                                                f"#{ot_rank} of {len(combined)}",
+                                                f"#{attendance_rank} of {len(combined)}",
+                                                f"#{weekend_rank} of {len(combined)}",
                                             ],
                                         }
                                     )
@@ -3738,57 +3716,6 @@ def create_dashboard():
                                         rankings,
                                         use_container_width=True,
                                         hide_index=True,
-                                    )
-
-                                # Show detailed records from original data
-                                st.markdown("#### 📋 Sample Attendance Records")
-
-                                employee_records = df_stats[
-                                    df_stats["Name"] == selected_employee
-                                ].sort_values("DateTime", ascending=False)
-
-                                if len(employee_records) > 0:
-                                    display_records = employee_records[
-                                        ["Date", "Time", "Status", "Weekday"]
-                                    ].head(10)
-                                    st.dataframe(
-                                        display_records,
-                                        use_container_width=True,
-                                        hide_index=True,
-                                    )
-                                    st.caption(
-                                        f"Showing 10 most recent records out of {len(employee_records):,} total"
-                                    )
-
-                                # Calculation explanation
-                                with st.expander(
-                                    "💡 How TotalDaysAttended is Calculated"
-                                ):
-                                    st.markdown(
-                                        f"""
-                                    **Formula:** `TotalDaysAttended = Number of UNIQUE dates`
-                                    
-                                    **For {selected_employee}:**
-                                    - Has **{int(emp_data['TotalRecords']):,}** total check-in/check-out records
-                                    - These records span **{int(emp_data['TotalDaysAttended']):,}** unique dates
-                                    - This means an average of **{emp_data['TotalRecords']/emp_data['TotalDaysAttended']:.1f}** records per day
-                                    
-                                    **Why count unique dates?**
-                                    
-                                    An employee might have multiple records per day:
-                                    - Check In, Check Out, Overtime In, Overtime Out = 4 records
-                                    - But it's still counted as **1 day attended**
-                                    
-                                    **Python Formula:**
-                                    ```python
-                                    total_days = df[df['Name'] == '{selected_employee}']['Date'].nunique()
-                                    ```
-                                    
-                                    **Excel Formula:**
-                                    ```excel
-                                    =SUMPRODUCT((Name_Column="{selected_employee}")/COUNTIFS(Name_Column,"{selected_employee}",Date_Column,Date_Column))
-                                    ```
-                                    """
                                     )
 
                             # Full data table
@@ -3801,24 +3728,24 @@ def create_dashboard():
                             )
 
                             if search_name:
-                                filtered_metrics = metrics[
-                                    metrics["Name"].str.contains(
+                                filtered_metrics = combined[
+                                    combined["Name"].str.contains(
                                         search_name, case=False, na=False
                                     )
                                 ]
                             else:
-                                filtered_metrics = metrics
+                                filtered_metrics = combined
 
                             # Display full table
                             st.dataframe(
                                 filtered_metrics.style.format(
                                     {
                                         "TotalOvertimeHours": "{:.1f}",
-                                        "TotalDaysAttended": "{:.0f}",
-                                        "WeekendDaysWorked": "{:.0f}",
-                                        "WeekdayDaysWorked": "{:.0f}",
-                                        "OvertimeDays": "{:.0f}",
-                                        "TotalRecords": "{:.0f}",
+                                        "TotalDays": "{:.0f}",
+                                        "WeekendDays": "{:.0f}",
+                                        "WeekdayDays": "{:.0f}",
+                                        "OvertimeSessions": "{:.0f}",
+                                        "AvgSessionHours": "{:.1f}",
                                     }
                                 ),
                                 use_container_width=True,
@@ -3837,24 +3764,21 @@ def create_dashboard():
                                 with pd.ExcelWriter(
                                     output, engine="openpyxl"
                                 ) as writer:
-                                    metrics.to_excel(
+                                    combined.to_excel(
                                         writer, sheet_name="All Employees", index=False
                                     )
-                                    top_10["overtime_hours"].to_excel(
+                                    top_10["top_overtime"].to_excel(
                                         writer,
                                         sheet_name="Top 10 Overtime",
                                         index=False,
                                     )
-                                    top_10["weekend_work"].to_excel(
+                                    top_10["top_weekend"].to_excel(
                                         writer, sheet_name="Top 10 Weekend", index=False
                                     )
-                                    top_10["daily_attendance"].to_excel(
+                                    top_10["top_attendance"].to_excel(
                                         writer,
                                         sheet_name="Top 10 Attendance",
                                         index=False,
-                                    )
-                                    top_10["total_records"].to_excel(
-                                        writer, sheet_name="Top 10 Records", index=False
                                     )
 
                                 output.seek(0)
@@ -3869,7 +3793,7 @@ def create_dashboard():
 
                             with col2:
                                 # Export to CSV
-                                csv = metrics.to_csv(index=False)
+                                csv = combined.to_csv(index=False)
 
                                 st.download_button(
                                     label="📥 Download CSV Report",

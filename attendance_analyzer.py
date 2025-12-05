@@ -511,6 +511,108 @@ def create_bar_chart(data: pd.DataFrame, x_col: str, y_col: str, title: str, col
     return fig
 
 
+def create_comparison_chart(top_10: Dict[str, pd.DataFrame], metric: str = 'overtime'):
+    """
+    Create a comparison chart for Top 10 employees.
+    
+    Args:
+        top_10: Dictionary from get_top_10_metrics()
+        metric: 'overtime', 'weekend', or 'attendance'
+        
+    Returns:
+        Plotly figure object
+    """
+    import plotly.express as px
+    
+    if metric == 'overtime':
+        data = top_10['top_overtime']
+        y_col = 'TotalOvertimeHours'
+        title = 'Top 10 Employees by Overtime Hours'
+        color = '#FF6B6B'
+    elif metric == 'weekend':
+        data = top_10['top_weekend']
+        y_col = 'WeekendDays'
+        title = 'Top 10 Employees by Weekend Days Worked'
+        color = '#4ECDC4'
+    else:  # attendance
+        data = top_10['top_attendance']
+        y_col = 'TotalDays'
+        title = 'Top 10 Employees by Total Attendance Days'
+        color = '#45B7D1'
+    
+    fig = px.bar(
+        data,
+        x='Name',
+        y=y_col,
+        title=title,
+        color_discrete_sequence=[color],
+        text=y_col
+    )
+    
+    fig.update_traces(textposition='outside', texttemplate='%{text:.1f}')
+    fig.update_layout(
+        xaxis_title='Employee Name',
+        yaxis_title=y_col.replace('Total', '').replace('Days', ' Days'),
+        xaxis_tickangle=-45,
+        showlegend=False,
+        height=500
+    )
+    
+    return fig
+
+
+def create_individual_metric_chart(metrics: Dict[str, pd.DataFrame], employee_name: str):
+    """
+    Create a chart showing individual employee metrics.
+    
+    Args:
+        metrics: Dictionary from calculate_all_metrics()
+        employee_name: Name of the employee
+        
+    Returns:
+        Plotly figure object or None if employee not found
+    """
+    import plotly.graph_objects as go
+    
+    combined = metrics['combined']
+    emp_data = combined[combined['Name'] == employee_name]
+    
+    if emp_data.empty:
+        return None
+    
+    emp_data = emp_data.iloc[0]
+    
+    # Create a multi-bar chart
+    categories = ['Weekday Days', 'Weekend Days', 'Overtime Hours', 'Overtime Sessions']
+    values = [
+        emp_data.get('WeekdayDays', 0),
+        emp_data.get('WeekendDays', 0),
+        emp_data.get('TotalOvertimeHours', 0),
+        emp_data.get('OvertimeSessions', 0)
+    ]
+    colors = ['#45B7D1', '#4ECDC4', '#FF6B6B', '#96CEB4']
+    
+    fig = go.Figure(data=[
+        go.Bar(
+            x=categories,
+            y=values,
+            marker_color=colors,
+            text=values,
+            textposition='outside'
+        )
+    ])
+    
+    fig.update_layout(
+        title=f'Attendance Metrics for {employee_name}',
+        xaxis_title='Metric',
+        yaxis_title='Value',
+        showlegend=False,
+        height=400
+    )
+    
+    return fig
+
+
 def export_to_excel(metrics: Dict[str, pd.DataFrame], output_path: str) -> str:
     """
     Export all metrics to an Excel file with multiple sheets.
